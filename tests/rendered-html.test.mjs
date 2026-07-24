@@ -35,10 +35,15 @@ test("server-renders the SBURB Player prototype", async () => {
   assert.match(html, /Seer/);
   assert.match(html, /Light/);
   assert.match(html, /Health Vial/);
+  assert.match(html, /header-temp-health/);
   assert.match(html, /Character/);
-  assert.match(html, /Equipment/);
+  assert.match(html, /Inventory/);
   assert.match(html, /Classpect/);
   assert.match(html, /Strife/);
+  assert.match(html, /Maximum AP/);
+  assert.doesNotMatch(html, />\s*Surge\s*</);
+  assert.doesNotMatch(html, />\s*Stagger\s*</);
+  assert.doesNotMatch(html, /Equipped Equipment|Inventory Summary/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
 });
 
@@ -71,6 +76,10 @@ test("keeps the prototype source-of-truth content and removes the starter", asyn
   assert.match(source, /window\.localStorage/);
   assert.match(source, /Export JSON/);
   assert.match(source, /Incoming Damage/);
+  assert.match(source, /header-temp-health/);
+  assert.match(source, /inventory-primary-tabs/);
+  assert.match(source, /updateResource\("surge"/);
+  assert.match(source, /updateResource\("stagger"/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await assert.rejects(
     access(new URL("../app/_sites-preview/SkeletonPreview.tsx", import.meta.url)),

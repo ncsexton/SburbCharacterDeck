@@ -74,13 +74,13 @@ ownership rules are implemented.
 ## Responsive layouts
 
 - **Phone (360px and up):** compact sticky identity/meters header, one-column
-  content, bottom navigation, scrollable filter chips, 2×2 Strife menu, and
-  bottom-sheet confirmations.
+  content, bottom navigation, Equipment/Items Inventory subtabs, scrollable
+  filters, a 2×2 Strife menu, and bottom-sheet confirmations.
 - **Tablet:** bottom navigation remains, two-column summaries and resources
   appear where space allows, and full-width touch controls remain at least
   44px tall.
 - **Desktop:** fixed left navigation, sticky top character header, multi-column
-  meter/resource/equipment layouts, and centered confirmation dialogs.
+  meter/resource/inventory layouts, and centered confirmation dialogs.
 
 ## Intentionally deferred
 
@@ -103,6 +103,11 @@ ownership rules are implemented.
   costs may go below zero.
 - Generic forced Pluck loss stops at zero unless the explicit override is
   selected.
+- Current AP, Surge, and Stagger are visible and adjustable only in Strife.
+  The Character page shows Maximum AP and other persistent resources as a
+  reference, with Doom Marks remaining directly editable there.
+- The persistent header displays Temporary Health as a yellow additive value
+  immediately before Current / Maximum Health whenever the buffer is nonzero.
 - Equipping one Weapon replaces the prior Weapon, and equipping Armor replaces
   Armor in the same slot. Other unusual slot rules remain a GM concern.
 - The `/gm` route is reserved and explains the Stage 4 boundary; only exact

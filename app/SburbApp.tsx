@@ -33,7 +33,7 @@ const navItems: Array<{
   short: string;
 }> = [
   { id: "character", label: "Character", short: "CH" },
-  { id: "equipment", label: "Equipment", short: "EQ" },
+  { id: "equipment", label: "Inventory", short: "IN" },
   { id: "classpect", label: "Classpect", short: "CP" },
   { id: "strife", label: "Strife", short: "ST" },
 ];
@@ -54,6 +54,23 @@ const classpectCategories: Array<"All" | ClasspectCategory> = [
   "Transformation",
   "Other",
 ];
+
+const inventoryEquipmentFilters = [
+  "Equipped",
+  "Weapons",
+  "Armor",
+  "Trinkets",
+  "Badges",
+] as const;
+
+const inventoryItemFilters = [
+  "All Items",
+  "Consumables",
+  "Utility",
+  "Catalysts",
+  "Quest Items",
+  "Miscellaneous",
+] as const;
 
 const statusSuggestions = [
   "Burn",
@@ -396,7 +413,29 @@ function MeterCard({
   );
 }
 
-function ResourceStepper({
+function ResourceReadout({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: number | string;
+  detail?: string;
+}) {
+  return (
+    <article className="resource-stepper resource-readout">
+      <div>
+        <p className="resource-label">{label}</p>
+        <p className="resource-value">
+          {value}
+          {detail ? <span>{detail}</span> : null}
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function StrifeCounter({
   label,
   value,
   detail,
@@ -408,31 +447,27 @@ function ResourceStepper({
   onChange: (value: number) => void;
 }) {
   return (
-    <article className="resource-stepper">
-      <div>
-        <p className="resource-label">{label}</p>
-        <p className="resource-value">
-          {value}
-          {detail ? <span>{detail}</span> : null}
-        </p>
-      </div>
-      <div className="stepper-controls">
+    <div className="strife-counter">
+      <span>{label}</span>
+      <div className="strife-counter-controls">
         <button
-          className="icon-button small"
           onClick={() => onChange(value - 1)}
           aria-label={`Decrease ${label}`}
         >
-          −
+          &minus;
         </button>
+        <strong>
+          {value}
+          {detail ? <small>{detail}</small> : null}
+        </strong>
         <button
-          className="icon-button small"
           onClick={() => onChange(value + 1)}
           aria-label={`Increase ${label}`}
         >
           +
         </button>
       </div>
-    </article>
+    </div>
   );
 }
 
@@ -1072,6 +1107,9 @@ export default function SburbApp() {
   const [strifeMenu, setStrifeMenu] = useState<
     "root" | "weapon" | "classpect" | "item" | "act"
   >("root");
+  const [inventoryTab, setInventoryTab] = useState<"equipment" | "items">(
+    "equipment",
+  );
   const [equipmentFilter, setEquipmentFilter] = useState("Equipped");
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [equipmentSort, setEquipmentSort] = useState("Equipped first");
@@ -1090,6 +1128,8 @@ export default function SburbApp() {
           parsed.schemaVersion === SCHEMA_VERSION &&
           parsed.character?.schemaVersion === SCHEMA_VERSION
         ) {
+          // Local storage is the external source being synchronized here.
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setCharacter(parsed.character);
           setHistory(parsed.history ?? []);
           setUndoStack(parsed.undoStack ?? []);
@@ -1469,7 +1509,6 @@ export default function SburbApp() {
   const applyItemUse = (item: Item) => {
     const beforeHealth = character.resources.currentHealth;
     const beforeTemp = character.resources.temporaryHealth;
-    const beforePluck = character.resources.currentPluck;
     commit(
       `Listed changes applied — ${item.name}`,
       {
@@ -1610,27 +1649,6 @@ export default function SburbApp() {
       },
       (draft) => {
         draft.resources[key] = nextValue;
-      },
-    );
-  };
-
-  const updateCurrency = (
-    key: "grist" | "boondollars" | "skillPoints",
-    value: number,
-  ) => {
-    const nextValue = Math.max(0, value);
-    if (nextValue === character.identity[key]) return;
-    commit(
-      `${key} adjusted`,
-      {
-        resourceType: key,
-        operationType: "manual-adjustment",
-        previousValue: character.identity[key],
-        newValue: nextValue,
-        changeAmount: nextValue - character.identity[key],
-      },
-      (draft) => {
-        draft.identity[key] = nextValue;
       },
     );
   };
@@ -1810,12 +1828,13 @@ export default function SburbApp() {
       Armor: (item) => item.itemType === "Armor",
       Trinkets: (item) => item.itemType === "Trinket",
       Badges: (item) => item.itemType === "Badge",
-      Items: (item) =>
-        ["Consumable", "Utility Item", "Miscellaneous Item"].includes(
-          item.itemType,
-        ),
+      "All Items": (item) =>
+        !["Weapon", "Armor", "Trinket", "Badge"].includes(item.itemType),
+      Consumables: (item) => item.itemType === "Consumable",
+      Utility: (item) => item.itemType === "Utility Item",
       Catalysts: (item) => item.itemType === "Catalyst",
       "Quest Items": (item) => item.itemType === "Quest Item",
+      Miscellaneous: (item) => item.itemType === "Miscellaneous Item",
     };
     const filtered = character.items.filter((item) => {
       const matchesFilter = (filterMap[equipmentFilter] ?? (() => true))(item);
@@ -1843,11 +1862,6 @@ export default function SburbApp() {
 
   const equippedWeapon = character.items.find(
     (item) => item.itemType === "Weapon" && item.equipped,
-  );
-  const equippedItems = character.items.filter((item) => item.equipped);
-  const inventoryItems = character.items.filter(
-    (item) =>
-      !["Weapon", "Armor", "Trinket", "Badge"].includes(item.itemType),
   );
   const itemUse = itemUseId
     ? character.items.find((item) => item.id === itemUseId) ?? null
@@ -1943,50 +1957,31 @@ export default function SburbApp() {
 
   const renderResources = () => (
     <div className="resource-grid">
-      <ResourceStepper
-        label="Action Points"
-        value={character.resources.currentAP}
-        detail={` / ${maximumAP} max`}
-        onChange={(value) => updateResource("currentAP", value)}
+      <ResourceReadout
+        label="Maximum AP"
+        value={maximumAP}
+        detail=" from Total Scamperway"
       />
       <DoomMarks
         value={character.resources.doomMarks}
         onChange={(value) => updateResource("doomMarks", value)}
       />
-      <ResourceStepper
-        label="Surge"
-        value={character.resources.surge}
-        detail=" stacks"
-        onChange={(value) => updateResource("surge", value)}
-      />
-      <ResourceStepper
-        label="Stagger"
-        value={character.resources.stagger}
-        detail=" stacks"
-        onChange={(value) => updateResource("stagger", value)}
-      />
-      <ResourceStepper
+      <ResourceReadout
         label="Short Rests"
         value={2 - character.resources.shortRestsUsed}
         detail=" / 2 remaining"
-        onChange={(remaining) =>
-          updateResource("shortRestsUsed", 2 - remaining)
-        }
       />
-      <ResourceStepper
+      <ResourceReadout
         label="Skill Points"
         value={character.identity.skillPoints}
-        onChange={(value) => updateCurrency("skillPoints", value)}
       />
-      <ResourceStepper
+      <ResourceReadout
         label="Grist"
-        value={character.identity.grist}
-        onChange={(value) => updateCurrency("grist", value)}
+        value={formatNumber(character.identity.grist)}
       />
-      <ResourceStepper
+      <ResourceReadout
         label="Boondollars"
-        value={character.identity.boondollars}
-        onChange={(value) => updateCurrency("boondollars", value)}
+        value={formatNumber(character.identity.boondollars)}
       />
     </div>
   );
@@ -2001,21 +1996,12 @@ export default function SburbApp() {
           100,
       ),
     );
-    const armorSlots = [
-      "Head Armor",
-      "Chest Armor",
-      "Hand Armor",
-      "Leg Armor",
-      "Feet Armor",
-      "Accessory Armor",
-    ];
-
     return (
       <div className="page-stack">
         <SectionHeading
           eyebrow="Player overview"
           title="Character"
-          description="Persistent identity, meters, resources, Stats, and ready gear."
+          description="Persistent identity, meters, character resources, and complete Stats."
           action={
             <span className={`save-indicator ${hydrated ? "saved" : ""}`}>
               <span />
@@ -2077,10 +2063,10 @@ export default function SburbApp() {
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">Manual tabletop tracking</p>
-              <h2>Other Resources</h2>
+              <p className="eyebrow">Character reference</p>
+              <h2>Persistent Resources</h2>
             </div>
-            <p>No turn processing or automatic AP spending.</p>
+            <p>Current AP, Surge, and Stagger are controlled only in Strife.</p>
           </div>
           {renderResources()}
         </section>
@@ -2136,121 +2122,6 @@ export default function SburbApp() {
                 ))}
             </div>
           </details>
-        </section>
-
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Ready loadout</p>
-              <h2>Equipped Equipment</h2>
-            </div>
-            <button
-              className="button button-muted"
-              onClick={() => setSelectedSection("equipment")}
-            >
-              Open full Equipment
-            </button>
-          </div>
-          <div className="equipment-summary-grid">
-            <CompactEquipmentCard
-              label="Weapon"
-              item={equippedWeapon}
-              onOpen={() => setSelectedSection("equipment")}
-            />
-            {armorSlots.map((slot) => (
-              <CompactEquipmentCard
-                key={slot}
-                label={slot}
-                item={equippedItems.find((item) => item.slot === slot)}
-                onOpen={() => setSelectedSection("equipment")}
-              />
-            ))}
-            {equippedItems
-              .filter((item) => item.itemType === "Trinket")
-              .map((item) => (
-                <CompactEquipmentCard
-                  key={item.id}
-                  label="Trinket"
-                  item={item}
-                  onOpen={() => setSelectedSection("equipment")}
-                />
-              ))}
-          </div>
-          <div className="badge-strip">
-            <h3>Badges</h3>
-            <div>
-              {character.items
-                .filter((item) => item.itemType === "Badge" && item.equipped)
-                .map((badge) => (
-                  <button
-                    key={badge.id}
-                    className="badge-chip"
-                    onClick={() => setSelectedSection("equipment")}
-                    title={badge.fullDescription}
-                  >
-                    <span>{badge.icon}</span>
-                    <span>
-                      <strong>{badge.name}</strong>
-                      <small>{badge.shortDescription}</small>
-                    </span>
-                  </button>
-                ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Carried supplies</p>
-              <h2>Inventory Summary</h2>
-            </div>
-            <button
-              className="button button-muted"
-              onClick={() => setSelectedSection("equipment")}
-            >
-              Search & filter
-            </button>
-          </div>
-          <div className="inventory-summary">
-            {[
-              "Consumable",
-              "Utility Item",
-              "Catalyst",
-              "Quest Item",
-              "Miscellaneous Item",
-            ].map((type) => {
-              const items = inventoryItems.filter(
-                (item) => item.itemType === type,
-              );
-              if (!items.length) return null;
-              return (
-                <section key={type}>
-                  <h3>{type === "Consumable" ? "Consumables" : `${type}s`}</h3>
-                  {items.map((item) => (
-                    <button
-                      key={item.id}
-                      className="inventory-row"
-                      onClick={() => {
-                        setEquipmentFilter(
-                          type === "Consumable" || type === "Utility Item"
-                            ? "Items"
-                            : type === "Catalyst"
-                              ? "Catalysts"
-                              : "Quest Items",
-                        );
-                        setSelectedSection("equipment");
-                      }}
-                    >
-                      <span>{item.name}</span>
-                      <span>×{item.quantity}</span>
-                      <small>{item.shortDescription}</small>
-                    </button>
-                  ))}
-                </section>
-              );
-            })}
-          </div>
         </section>
 
         <section className="panel backup-panel">
@@ -2315,12 +2186,18 @@ export default function SburbApp() {
     );
   };
 
-  const renderEquipment = () => (
-    <div className="page-stack">
+  const renderInventory = () => {
+    const activeFilters =
+      inventoryTab === "equipment"
+        ? inventoryEquipmentFilters
+        : inventoryItemFilters;
+
+    return (
+      <div className="page-stack">
       <SectionHeading
         eyebrow={`${character.items.length} owned entries`}
-        title="Equipment"
-        description="Complete item rules, optional Affixes, Weapon Moves, charges, quantities, and equipped state."
+        title="Inventory"
+        description="Manage equipped gear and carried items from one place, with complete rules, quantities, charges, and Affixes."
         action={
           <button
             className="button button-quiet"
@@ -2333,20 +2210,43 @@ export default function SburbApp() {
       />
       <section className="equipment-toolbar panel">
         <div
+          className="inventory-primary-tabs"
+          role="tablist"
+          aria-label="Inventory sections"
+        >
+          <button
+            className={inventoryTab === "equipment" ? "active" : ""}
+            onClick={() => {
+              setInventoryTab("equipment");
+              setEquipmentFilter("Equipped");
+            }}
+            role="tab"
+            aria-selected={inventoryTab === "equipment"}
+          >
+            Equipment
+          </button>
+          <button
+            className={inventoryTab === "items" ? "active" : ""}
+            onClick={() => {
+              setInventoryTab("items");
+              setEquipmentFilter("All Items");
+            }}
+            role="tab"
+            aria-selected={inventoryTab === "items"}
+          >
+            Items
+          </button>
+        </div>
+        <div
           className="filter-scroll"
           role="tablist"
-          aria-label="Equipment categories"
+          aria-label={
+            inventoryTab === "equipment"
+              ? "Equipment categories"
+              : "Item categories"
+          }
         >
-          {[
-            "Equipped",
-            "Weapons",
-            "Armor",
-            "Trinkets",
-            "Badges",
-            "Items",
-            "Catalysts",
-            "Quest Items",
-          ].map((filter) => (
+          {activeFilters.map((filter) => (
             <button
               key={filter}
               className={equipmentFilter === filter ? "active" : ""}
@@ -2360,11 +2260,11 @@ export default function SburbApp() {
         </div>
         <div className="search-sort-row">
           <label className="search-field">
-            <span className="sr-only">Search equipment</span>
+            <span className="sr-only">Search inventory</span>
             <span aria-hidden="true">⌕</span>
             <input
               type="search"
-              placeholder="Search name, type, rarity…"
+              placeholder="Search inventory…"
               value={equipmentSearch}
               onChange={(event) => setEquipmentSearch(event.target.value)}
             />
@@ -2407,13 +2307,14 @@ export default function SburbApp() {
         {!filteredEquipment.length ? (
           <div className="empty-state panel">
             <span>◇</span>
-            <h2>No matching equipment</h2>
+            <h2>No matching inventory entries</h2>
             <p>Try another category or clear the search.</p>
           </div>
         ) : null}
       </section>
-    </div>
-  );
+      </div>
+    );
+  };
 
   const renderClasspectEntries = (
     type: ClasspectEntry["entryType"],
@@ -2785,8 +2686,12 @@ export default function SburbApp() {
       name: "Change Equipment",
       cost: "Table cost",
       detail:
-        "Open the Equipment selector. Equipping recalculates persistent bonuses but never deducts AP automatically.",
-      action: () => setSelectedSection("equipment"),
+        "Open the Equipment section of Inventory. Equipping recalculates persistent bonuses but never deducts AP automatically.",
+      action: () => {
+        setInventoryTab("equipment");
+        setEquipmentFilter("Equipped");
+        setSelectedSection("equipment");
+      },
     },
     {
       name: "Custom Act",
@@ -2820,7 +2725,7 @@ export default function SburbApp() {
               {act.action ? (
                 <button className="button button-primary" onClick={act.action}>
                   {act.name === "Change Equipment"
-                    ? "Open Equipment"
+                    ? "Open Inventory"
                     : `Mark ${act.name} active`}
                 </button>
               ) : null}
@@ -2860,24 +2765,26 @@ export default function SburbApp() {
             {character.resources.currentPluck} / {maximumPluck}
           </strong>
         </button>
-        <button onClick={() => updateResource("currentAP", character.resources.currentAP + 1)}>
-          <span>AP</span>
-          <strong>
-            {character.resources.currentAP} / {maximumAP}
-          </strong>
-        </button>
-        <span>
-          <small>Surge</small>
-          <strong>{character.resources.surge}</strong>
-        </span>
-        <span>
-          <small>Stagger</small>
-          <strong>{character.resources.stagger}</strong>
-        </span>
-        <span>
-          <small>Doom</small>
+        <StrifeCounter
+          label="AP"
+          value={character.resources.currentAP}
+          detail={` / ${maximumAP}`}
+          onChange={(value) => updateResource("currentAP", value)}
+        />
+        <StrifeCounter
+          label="Surge"
+          value={character.resources.surge}
+          onChange={(value) => updateResource("surge", value)}
+        />
+        <StrifeCounter
+          label="Stagger"
+          value={character.resources.stagger}
+          onChange={(value) => updateResource("stagger", value)}
+        />
+        <div className="strife-static-resource">
+          <span>Doom</span>
           <strong>{character.resources.doomMarks} / 3</strong>
-        </span>
+        </div>
       </section>
       <section className="strife-quickbar">{renderQuickActions()}</section>
       {renderStatusStrip()}
@@ -3018,12 +2925,14 @@ export default function SburbApp() {
               }
             >
               <span>Health Vial</span>
-              <strong>
+              <strong className="header-health-value">
+                {character.resources.temporaryHealth > 0 ? (
+                  <b className="header-temp-health">
+                    {character.resources.temporaryHealth} +
+                  </b>
+                ) : null}
                 {character.resources.currentHealth} / {maximumHealth}
               </strong>
-              {character.resources.temporaryHealth > 0 ? (
-                <small>+{character.resources.temporaryHealth} Temp</small>
-              ) : null}
             </button>
             <button
               className="header-meter pluck"
@@ -3044,7 +2953,7 @@ export default function SburbApp() {
 
         <main id="main-content" className="main-content">
           {selectedSection === "character" ? renderCharacter() : null}
-          {selectedSection === "equipment" ? renderEquipment() : null}
+          {selectedSection === "equipment" ? renderInventory() : null}
           {selectedSection === "classpect" ? renderClasspect() : null}
           {selectedSection === "strife" ? renderStrife() : null}
         </main>
@@ -3078,7 +2987,6 @@ export default function SburbApp() {
         <AdjustmentModal
           request={adjustment}
           labels={adjustmentLabels[adjustment.kind]}
-          character={character}
           maximumHealth={maximumHealth}
           maximumPluck={maximumPluck}
           preview={getAdjustmentPreview}
@@ -3662,57 +3570,6 @@ export default function SburbApp() {
   );
 }
 
-function CompactEquipmentCard({
-  label,
-  item,
-  onOpen,
-}: {
-  label: string;
-  item?: Item;
-  onOpen: () => void;
-}) {
-  return (
-    <button className="compact-equipment-card" onClick={onOpen}>
-      <span className="compact-slot">{label}</span>
-      {item ? (
-        <>
-          <span className="item-icon">{item.icon ?? "IT"}</span>
-          <strong>{item.name}</strong>
-          <small>
-            {item.itemLevel ? `IL ${item.itemLevel} · ` : ""}
-            {item.rarity}
-          </small>
-          <p>{item.shortDescription}</p>
-          <div className="tag-row">
-            {item.statBonuses.slice(0, 2).map((bonus) => (
-              <span className="tag" key={bonus.statDefinitionId}>
-                {statDefinitions.find(
-                  (definition) =>
-                    definition.id === bonus.statDefinitionId,
-                )?.compactName ??
-                  statDefinitions.find(
-                    (definition) =>
-                      definition.id === bonus.statDefinitionId,
-                  )?.name}{" "}
-                {formatModifier(bonus.amount)}
-              </span>
-            ))}
-            {item.majorAffixes[0] ? (
-              <span className="tag">{item.majorAffixes[0].name}</span>
-            ) : null}
-          </div>
-        </>
-      ) : (
-        <>
-          <span className="empty-slot">+</span>
-          <strong>Empty slot</strong>
-          <small>Open Equipment to equip an item</small>
-        </>
-      )}
-    </button>
-  );
-}
-
 function CategoryFilters({
   value,
   onChange,
@@ -3759,7 +3616,6 @@ function SubmenuHeader({
 function AdjustmentModal({
   request,
   labels,
-  character,
   maximumHealth,
   maximumPluck,
   preview,
@@ -3769,7 +3625,6 @@ function AdjustmentModal({
 }: {
   request: AdjustmentRequest;
   labels: { title: string; description: string };
-  character: CharacterData;
   maximumHealth: number;
   maximumPluck: number;
   preview: (
