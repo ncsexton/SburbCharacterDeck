@@ -1,7 +1,7 @@
 # SBURB Character Manager
 
-A responsive static interactive prototype for a custom SBURB tabletop RPG. It
-combines a digital character sheet, equipment and inventory reference,
+A responsive interactive prototype for a custom SBURB tabletop RPG. It
+combines a Player-editable digital character sheet, Inventory builder,
 Classpect library, personal Strife menu, persistent resource tracking, and a
 small incoming-damage calculator.
 
@@ -30,6 +30,8 @@ npm test
 ```text
 app/
   gm/page.tsx        Reserved Stage 4 GM route
+  PlayerEditors.tsx  Character, item, Weapon Move, Skill, and Ability editors
+  persistence.ts     Versioned local-save and JSON-backup migration
   SburbApp.tsx       Shared state, calculations, interactions, and all Player pages
   globals.css        Responsive game-interface design system
   layout.tsx         Site metadata and document shell
@@ -46,27 +48,34 @@ tests/
 
 The data is relational in shape even though Stage 1 is client-only:
 
-- `CharacterData` owns identity, current resources, Stats, Custom Stats, items,
-  Classpect entries, Status notes, turn notes, and a manually selected guard
-  state.
+- `CharacterData` owns editable identity, progression, current resources,
+  Stats, Custom Stats, items, Classpect entries, Status notes, turn notes, and
+  a manually selected guard state.
 - items own optional Major Affixes, zero or more Minor Affixes, bonuses,
   charges, limited-use state, and optional Weapon Moves.
 - Class Skills and Aspect Abilities share one typed record shape but retain a
   required `entryType` discriminator.
 - resource history and undo records are separate from permanent character data.
 - totals are derived from Base + equipped bonuses + persistent + temporary -
-  penalties. Stat Modifier is `floor(Total / 5)` unless a GM override is active.
+  penalties. Stat Modifier is `floor(Total / 5)` unless a manual override is active.
 - Maximum AP is derived from Total Scamperway.
 
-The export format includes `schemaVersion: 1`.
+The export format includes `schemaVersion: 2`. Version 1 local saves and JSON
+backups are migrated when opened.
 
 ## Persistence
 
-Stage 1 uses one shared React state object and device-local browser storage.
+The current local-authoring milestone uses one shared React state object and
+device-local browser storage.
 Health, Temporary Health, Pluck, AP, tracked resources, notes, equipped state,
-quantities, charges, limited uses, history, undo, and the selected Player tab
-survive refreshes on the same device. JSON export and import provide manual
-backup and restoration.
+quantities, charges, limited uses, Player-authored items, Weapon Moves, Skills,
+Abilities, history, undo, and the selected Player tab survive refreshes on the
+same device. JSON export and import provide manual backup and restoration.
+
+Players can edit identity, progression, currencies, Stat components, Custom
+Stats, Maximum Health and Pluck, items, Affixes, Weapon Moves, Class Skills,
+and Aspect Abilities. Creation, duplication, deletion, and reordering use the
+same undo history as resource changes.
 
 Cloud synchronization is intentionally deferred until authentication and data
 ownership rules are implemented.
@@ -85,7 +94,8 @@ ownership rules are implemented.
 ## Intentionally deferred
 
 - authentication, campaigns, ownership, Player/GM authorization, and cloud data
-- full GM editors, creation, duplication, resource awards, and history repair
+- campaign-wide GM administration, resource awards across multiple characters,
+  and history repair
 - PWA installation, service-worker caching, and multi-device offline sync
 - attack/damage dice, Hit/Combo/Crit/Dubs calculations, targets, enemies,
   initiative, turns, maps, Effect Chains, Reactions, Status processing, Saving

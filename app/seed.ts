@@ -3,7 +3,7 @@ import type {
   StatDefinition,
 } from "./types";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const statDefinitions: StatDefinition[] = [
   {
@@ -118,7 +118,11 @@ export const seedCharacter: CharacterData = {
     currentExp: 2850,
     expRequiredForNextLevel: 3600,
     className: "Seer",
+    classDescription:
+      "Seers expose useful paths, hidden connections, and missing information without resolving the Player’s choices for them.",
     aspectName: "Light",
+    aspectDescription:
+      "Light concerns fortune, attention, relevance, and consequential information.",
     landName: "Land of Lanterns and Labyrinths",
     grist: 1840,
     boondollars: 612,

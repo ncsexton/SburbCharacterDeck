@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
+import {
+  migrateCharacterBackup,
+  migratePersistedPrototype,
+} from "../app/persistence.ts";
 import { previewIncomingDamage } from "../app/rules.ts";
+import { SCHEMA_VERSION, seedCharacter } from "../app/seed.ts";
 
 async function render(path = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -41,6 +46,7 @@ test("server-renders the SBURB Player prototype", async () => {
   assert.match(html, /Classpect/);
   assert.match(html, /Strife/);
   assert.match(html, /Maximum AP/);
+  assert.match(html, /Edit character/);
   assert.doesNotMatch(html, />\s*Surge\s*</);
   assert.doesNotMatch(html, />\s*Stagger\s*</);
   assert.doesNotMatch(html, /Equipped Equipment|Inventory Summary/);
@@ -48,8 +54,10 @@ test("server-renders the SBURB Player prototype", async () => {
 });
 
 test("keeps the prototype source-of-truth content and removes the starter", async () => {
-  const [source, seed, packageJson] = await Promise.all([
+  const [source, editors, persistence, seed, packageJson] = await Promise.all([
     readFile(new URL("../app/SburbApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/PlayerEditors.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/persistence.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/seed.ts", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
@@ -80,10 +88,54 @@ test("keeps the prototype source-of-truth content and removes the starter", asyn
   assert.match(source, /inventory-primary-tabs/);
   assert.match(source, /updateResource\("surge"/);
   assert.match(source, /updateResource\("stagger"/);
+  assert.match(source, /createBlankItem/);
+  assert.match(source, /createBlankClasspectEntry/);
+  assert.match(editors, /Create Inventory Entry/);
+  assert.match(editors, /Weapon Moves/);
+  assert.match(editors, /Create \$\{entry\.entryType\}/);
+  assert.match(persistence, /migratePersistedPrototype/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await assert.rejects(
     access(new URL("../app/_sites-preview/SkeletonPreview.tsx", import.meta.url)),
   );
+});
+
+test("migrates legacy local saves and character backups to the current schema", () => {
+  const legacyCharacter = structuredClone(seedCharacter);
+  legacyCharacter.schemaVersion = 1;
+  delete legacyCharacter.identity.classDescription;
+  delete legacyCharacter.identity.aspectDescription;
+
+  const persisted = migratePersistedPrototype({
+    schemaVersion: 1,
+    character: legacyCharacter,
+    history: [],
+    undoStack: [
+      {
+        id: "undo-legacy",
+        label: "Legacy change",
+        historyId: "history-legacy",
+        previousCharacter: legacyCharacter,
+      },
+    ],
+    selectedSection: "equipment",
+  });
+  assert.ok(persisted);
+  assert.equal(persisted.schemaVersion, SCHEMA_VERSION);
+  assert.equal(persisted.character.schemaVersion, SCHEMA_VERSION);
+  assert.match(persisted.character.identity.classDescription, /Player-authored/);
+  assert.equal(
+    persisted.undoStack[0].previousCharacter.schemaVersion,
+    SCHEMA_VERSION,
+  );
+
+  const backup = migrateCharacterBackup({
+    schemaVersion: 1,
+    character: legacyCharacter,
+    resourceHistory: [],
+  });
+  assert.ok(backup);
+  assert.equal(backup.character.schemaVersion, SCHEMA_VERSION);
 });
 
 test("reserves the separate GM route", async () => {

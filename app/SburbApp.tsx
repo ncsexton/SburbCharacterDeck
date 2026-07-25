@@ -7,6 +7,21 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import {
+  CharacterEditor,
+  ClasspectEditor,
+  ItemEditor,
+  createBlankClasspectEntry,
+  createBlankItem,
+  duplicateClasspectEntry,
+  duplicateItem,
+  type ClasspectEditorState,
+  type ItemEditorState,
+} from "./PlayerEditors";
+import {
+  migrateCharacterBackup,
+  migratePersistedPrototype,
+} from "./persistence";
 import { SCHEMA_VERSION, seedCharacter, statDefinitions } from "./seed";
 import { previewIncomingDamage } from "./rules";
 import type {
@@ -578,14 +593,14 @@ function StatSection({
                 </dl>
                 {values.overridden ? (
                   <p className="override-notice">
-                    GM override active. Calculated values remain visible above.
+                    Manual override active. Calculated values remain visible above.
                   </p>
                 ) : null}
                 <button
                   className="button button-quiet"
                   onClick={() => onOverride(definition.id)}
                 >
-                  GM override
+                  Manual override
                 </button>
               </div>
             </details>
@@ -737,6 +752,9 @@ function ItemCard({
   onMoveCost,
   onMoveCharge,
   onMoveUsed,
+  onEdit,
+  onDuplicate,
+  onDelete,
 }: {
   item: Item;
   onToggleEquip: () => void;
@@ -746,6 +764,9 @@ function ItemCard({
   onMoveCost: (move: WeaponMove) => void;
   onMoveCharge: (move: WeaponMove) => void;
   onMoveUsed: (move: WeaponMove) => void;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
 }) {
   const canApplySimpleOperation =
     item.healthCost !== undefined ||
@@ -805,12 +826,15 @@ function ItemCard({
           <section className="item-subsection">
             <h4>Persistent bonuses</h4>
             <div className="bonus-grid">
-              {item.statBonuses.map((bonus) => {
+              {item.statBonuses.map((bonus, index) => {
                 const definition = statDefinitions.find(
                   (stat) => stat.id === bonus.statDefinitionId,
                 );
                 return (
-                  <span className="bonus-pill" key={bonus.statDefinitionId}>
+                  <span
+                    className="bonus-pill"
+                    key={`${bonus.statDefinitionId}-${index}`}
+                  >
                     {definition?.name ?? bonus.statDefinitionId}{" "}
                     {formatModifier(bonus.amount)}
                   </span>
@@ -934,6 +958,16 @@ function ItemCard({
               Preview listed changes
             </button>
           ) : null}
+          <span className="control-spacer" />
+          <button className="button button-muted" onClick={onEdit}>
+            Edit
+          </button>
+          <button className="button button-quiet" onClick={onDuplicate}>
+            Duplicate
+          </button>
+          <button className="button button-danger" onClick={onDelete}>
+            Delete
+          </button>
         </div>
       </div>
     </details>
@@ -945,11 +979,19 @@ function ClasspectCard({
   onApplyCost,
   onSpendCharge,
   onMarkUsed,
+  onEdit,
+  onDuplicate,
+  onDelete,
+  onMove,
 }: {
   entry: ClasspectEntry;
   onApplyCost: () => void;
   onSpendCharge: () => void;
   onMarkUsed: () => void;
+  onEdit?: () => void;
+  onDuplicate?: () => void;
+  onDelete?: () => void;
+  onMove?: (direction: -1 | 1) => void;
 }) {
   return (
     <details
@@ -981,6 +1023,7 @@ function ClasspectCard({
           {entry.timing ? <span className="tag">{entry.timing}</span> : null}
           {entry.usageLimit ? <span className="tag">{entry.usageLimit}</span> : null}
           {entry.used ? <span className="tag tag-spent">Marked spent</span> : null}
+          {!entry.unlocked ? <span className="tag tag-spent">Locked</span> : null}
         </div>
         <p>{entry.fullDescription}</p>
         <dl className="rules-list">
@@ -1000,6 +1043,15 @@ function ClasspectCard({
             <div>
               <dt>Required roll</dt>
               <dd>{entry.roll}</dd>
+            </div>
+          ) : null}
+          {entry.saveStat || entry.saveDC !== undefined ? (
+            <div>
+              <dt>Saving Throw</dt>
+              <dd>
+                {entry.saveStat || "Manual"}
+                {entry.saveDC !== undefined ? ` DC ${entry.saveDC}` : ""}
+              </dd>
             </div>
           ) : null}
           <div>
@@ -1041,6 +1093,40 @@ function ClasspectCard({
             <button className="button button-muted" onClick={onMarkUsed}>
               {entry.used ? "Mark available" : "Mark use spent"}
             </button>
+          ) : null}
+          {onEdit ? (
+            <>
+              <span className="control-spacer" />
+              {onMove ? (
+                <>
+                  <button
+                    className="button button-quiet"
+                    onClick={() => onMove(-1)}
+                  >
+                    Move up
+                  </button>
+                  <button
+                    className="button button-quiet"
+                    onClick={() => onMove(1)}
+                  >
+                    Move down
+                  </button>
+                </>
+              ) : null}
+              <button className="button button-muted" onClick={onEdit}>
+                Edit
+              </button>
+              {onDuplicate ? (
+                <button className="button button-quiet" onClick={onDuplicate}>
+                  Duplicate
+                </button>
+              ) : null}
+              {onDelete ? (
+                <button className="button button-danger" onClick={onDelete}>
+                  Delete
+                </button>
+              ) : null}
+            </>
           ) : null}
         </div>
         <p className="automation-note">
@@ -1104,6 +1190,11 @@ export default function SburbApp() {
   const [statOverride, setStatOverride] =
     useState<StatOverrideRequest | null>(null);
   const [statusDraft, setStatusDraft] = useState<StatusDraft | null>(null);
+  const [characterDraft, setCharacterDraft] =
+    useState<CharacterData | null>(null);
+  const [itemEditor, setItemEditor] = useState<ItemEditorState | null>(null);
+  const [classpectEditor, setClasspectEditor] =
+    useState<ClasspectEditorState | null>(null);
   const [strifeMenu, setStrifeMenu] = useState<
     "root" | "weapon" | "classpect" | "item" | "act"
   >("root");
@@ -1123,11 +1214,8 @@ export default function SburbApp() {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as PersistedPrototype;
-        if (
-          parsed.schemaVersion === SCHEMA_VERSION &&
-          parsed.character?.schemaVersion === SCHEMA_VERSION
-        ) {
+        const parsed = migratePersistedPrototype(JSON.parse(raw));
+        if (parsed) {
           // Local storage is the external source being synchronized here.
           // eslint-disable-next-line react-hooks/set-state-in-effect
           setCharacter(parsed.character);
@@ -1653,6 +1741,395 @@ export default function SburbApp() {
     );
   };
 
+  const openCharacterEditor = () => {
+    setCharacterDraft(clone(character));
+  };
+
+  const saveCharacterEditor = () => {
+    if (!characterDraft) return;
+    const saved = clone(characterDraft);
+    saved.schemaVersion = SCHEMA_VERSION;
+    saved.identity.level = Math.max(0, saved.identity.level);
+    saved.identity.currentExp = Math.max(0, saved.identity.currentExp);
+    saved.identity.expRequiredForNextLevel = Math.max(
+      0,
+      saved.identity.expRequiredForNextLevel,
+    );
+    saved.identity.grist = Math.max(0, saved.identity.grist);
+    saved.identity.boondollars = Math.max(0, saved.identity.boondollars);
+    saved.identity.skillPoints = Math.max(0, saved.identity.skillPoints);
+    saved.resources.baseMaximumHealth = Math.max(
+      0,
+      saved.resources.baseMaximumHealth,
+    );
+    saved.resources.baseMaximumPluck = Math.max(
+      0,
+      saved.resources.baseMaximumPluck,
+    );
+    saved.resources.doomMarks = Math.max(
+      0,
+      Math.min(3, saved.resources.doomMarks),
+    );
+    saved.resources.shortRestsUsed = Math.max(
+      0,
+      Math.min(2, saved.resources.shortRestsUsed),
+    );
+    saved.resources.currentHealth = Math.min(
+      saved.resources.currentHealth,
+      getMaximumHealth(saved),
+    );
+    saved.resources.currentPluck = Math.min(
+      saved.resources.currentPluck,
+      getMaximumPluck(saved),
+    );
+
+    commit(
+      `Updated character sheet — ${saved.identity.characterName}`,
+      {
+        resourceType: "Character Sheet",
+        operationType: "edit",
+        sourceName: saved.identity.characterName,
+      },
+      (draft) => {
+        Object.assign(draft, saved);
+      },
+    );
+    setCharacterDraft(null);
+  };
+
+  const focusInventoryEntry = (item: Item) => {
+    setEquipmentSearch("");
+    if (["Weapon", "Armor", "Trinket", "Badge"].includes(item.itemType)) {
+      setInventoryTab("equipment");
+      setEquipmentFilter(
+        item.itemType === "Weapon"
+          ? "Weapons"
+          : item.itemType === "Armor"
+            ? "Armor"
+            : item.itemType === "Trinket"
+              ? "Trinkets"
+              : "Badges",
+      );
+    } else {
+      setInventoryTab("items");
+      setEquipmentFilter(
+        item.itemType === "Consumable"
+          ? "Consumables"
+          : item.itemType === "Utility Item"
+            ? "Utility"
+            : item.itemType === "Catalyst"
+              ? "Catalysts"
+              : item.itemType === "Quest Item"
+                ? "Quest Items"
+                : "Miscellaneous",
+      );
+    }
+  };
+
+  const openNewItem = () => {
+    const item = createBlankItem(
+      inventoryTab === "equipment" ? "Weapon" : "Miscellaneous Item",
+    );
+    setItemEditor({ mode: "create", item });
+  };
+
+  const saveItemEditor = () => {
+    if (!itemEditor || !itemEditor.item.name.trim()) return;
+    const saved = clone(itemEditor.item);
+    saved.quantity = Math.max(0, saved.quantity);
+    if (saved.maximumCharges === undefined) {
+      saved.remainingCharges = undefined;
+    } else {
+      saved.remainingCharges = Math.max(
+        0,
+        Math.min(
+          saved.maximumCharges,
+          saved.remainingCharges ?? saved.maximumCharges,
+        ),
+      );
+    }
+    [...saved.majorAffixes, ...saved.minorAffixes].forEach((affix) => {
+      if (affix.maximumCharges === undefined) {
+        affix.currentCharges = undefined;
+      } else {
+        affix.currentCharges = Math.max(
+          0,
+          Math.min(
+            affix.maximumCharges,
+            affix.currentCharges ?? affix.maximumCharges,
+          ),
+        );
+      }
+    });
+    saved.weaponMoves?.forEach((move) => {
+      if (move.maximumCharges === undefined) {
+        move.currentCharges = undefined;
+      } else {
+        move.currentCharges = Math.max(
+          0,
+          Math.min(
+            move.maximumCharges,
+            move.currentCharges ?? move.maximumCharges,
+          ),
+        );
+      }
+    });
+    if (saved.itemType !== "Weapon") saved.weaponMoves = undefined;
+
+    commit(
+      `${itemEditor.mode === "create" ? "Created" : "Updated"} ${saved.name}`,
+      {
+        resourceType: "Inventory",
+        operationType:
+          itemEditor.mode === "create" ? "create-item" : "edit-item",
+        sourceName: saved.name,
+      },
+      (draft) => {
+        const existingIndex = draft.items.findIndex(
+          (item) => item.id === saved.id,
+        );
+        if (existingIndex >= 0) {
+          draft.items[existingIndex] = saved;
+        } else {
+          draft.items.push(saved);
+        }
+
+        if (saved.equipped && saved.itemType === "Weapon") {
+          draft.items.forEach((item) => {
+            if (item.id !== saved.id && item.itemType === "Weapon") {
+              item.equipped = false;
+            }
+          });
+        }
+        if (saved.equipped && saved.itemType === "Armor" && saved.slot) {
+          draft.items.forEach((item) => {
+            if (
+              item.id !== saved.id &&
+              item.itemType === "Armor" &&
+              item.slot === saved.slot
+            ) {
+              item.equipped = false;
+            }
+          });
+        }
+
+        draft.resources.currentHealth = Math.min(
+          draft.resources.currentHealth,
+          getMaximumHealth(draft),
+        );
+        draft.resources.currentPluck = Math.min(
+          draft.resources.currentPluck,
+          getMaximumPluck(draft),
+        );
+      },
+    );
+    focusInventoryEntry(saved);
+    setItemEditor(null);
+  };
+
+  const duplicateInventoryItem = (item: Item) => {
+    const copy = duplicateItem(item);
+    commit(
+      `Duplicated ${item.name}`,
+      {
+        resourceType: "Inventory",
+        operationType: "duplicate-item",
+        sourceName: item.name,
+      },
+      (draft) => {
+        draft.items.push(copy);
+      },
+    );
+    focusInventoryEntry(copy);
+  };
+
+  const requestDeleteItem = (item: Item) => {
+    setConfirmRequest({
+      title: `Delete ${item.name}?`,
+      description:
+        "This removes the item, its Affixes, and all attached Weapon Moves. The complete deletion can be undone.",
+      confirmLabel: "Delete item",
+      action: () => {
+        commit(
+          `Deleted ${item.name}`,
+          {
+            resourceType: "Inventory",
+            operationType: "delete-item",
+            sourceName: item.name,
+          },
+          (draft) => {
+            draft.items = draft.items.filter((entry) => entry.id !== item.id);
+            draft.resources.currentHealth = Math.min(
+              draft.resources.currentHealth,
+              getMaximumHealth(draft),
+            );
+            draft.resources.currentPluck = Math.min(
+              draft.resources.currentPluck,
+              getMaximumPluck(draft),
+            );
+          },
+        );
+        setConfirmRequest(null);
+      },
+    });
+  };
+
+  const openNewClasspectEntry = (
+    entryType: ClasspectEntry["entryType"],
+  ) => {
+    const displayOrder =
+      Math.max(
+        0,
+        ...character.classpectEntries
+          .filter((entry) => entry.entryType === entryType)
+          .map((entry) => entry.displayOrder),
+      ) + 1;
+    setClasspectEditor({
+      mode: "create",
+      entry: createBlankClasspectEntry(entryType, displayOrder),
+    });
+  };
+
+  const saveClasspectEditor = () => {
+    if (!classpectEditor || !classpectEditor.entry.name.trim()) return;
+    const saved = clone(classpectEditor.entry);
+    const original = character.classpectEntries.find(
+      (entry) => entry.id === saved.id,
+    );
+    if (original && original.entryType !== saved.entryType) {
+      saved.displayOrder =
+        Math.max(
+          0,
+          ...character.classpectEntries
+            .filter((entry) => entry.entryType === saved.entryType)
+            .map((entry) => entry.displayOrder),
+        ) + 1;
+    }
+    if (saved.maximumCharges === undefined) {
+      saved.currentCharges = undefined;
+    } else {
+      saved.currentCharges = Math.max(
+        0,
+        Math.min(
+          saved.maximumCharges,
+          saved.currentCharges ?? saved.maximumCharges,
+        ),
+      );
+    }
+    commit(
+      `${classpectEditor.mode === "create" ? "Created" : "Updated"} ${saved.name}`,
+      {
+        resourceType: saved.entryType,
+        operationType:
+          classpectEditor.mode === "create"
+            ? "create-classpect"
+            : "edit-classpect",
+        sourceName: saved.name,
+      },
+      (draft) => {
+        const existingIndex = draft.classpectEntries.findIndex(
+          (entry) => entry.id === saved.id,
+        );
+        if (existingIndex >= 0) {
+          draft.classpectEntries[existingIndex] = saved;
+        } else {
+          draft.classpectEntries.push(saved);
+        }
+      },
+    );
+    if (saved.entryType === "Class Skill") {
+      setClassFilter("All");
+    } else {
+      setAspectFilter("All");
+    }
+    setClasspectEditor(null);
+  };
+
+  const duplicateClasspect = (entry: ClasspectEntry) => {
+    const nextOrder =
+      Math.max(
+        0,
+        ...character.classpectEntries
+          .filter((candidate) => candidate.entryType === entry.entryType)
+          .map((candidate) => candidate.displayOrder),
+      ) + 1;
+    const copy = duplicateClasspectEntry(entry, nextOrder);
+    commit(
+      `Duplicated ${entry.name}`,
+      {
+        resourceType: entry.entryType,
+        operationType: "duplicate-classpect",
+        sourceName: entry.name,
+      },
+      (draft) => {
+        draft.classpectEntries.push(copy);
+      },
+    );
+    if (copy.entryType === "Class Skill") {
+      setClassFilter("All");
+    } else {
+      setAspectFilter("All");
+    }
+  };
+
+  const requestDeleteClasspect = (entry: ClasspectEntry) => {
+    setConfirmRequest({
+      title: `Delete ${entry.name}?`,
+      description:
+        "This removes the complete rules entry and its usage tracking. The deletion can be undone.",
+      confirmLabel: `Delete ${entry.entryType}`,
+      action: () => {
+        commit(
+          `Deleted ${entry.name}`,
+          {
+            resourceType: entry.entryType,
+            operationType: "delete-classpect",
+            sourceName: entry.name,
+          },
+          (draft) => {
+            draft.classpectEntries = draft.classpectEntries.filter(
+              (candidate) => candidate.id !== entry.id,
+            );
+          },
+        );
+        setConfirmRequest(null);
+      },
+    });
+  };
+
+  const moveClasspectEntry = (
+    entry: ClasspectEntry,
+    direction: -1 | 1,
+  ) => {
+    const peers = character.classpectEntries
+      .filter((candidate) => candidate.entryType === entry.entryType)
+      .sort((a, b) => a.displayOrder - b.displayOrder);
+    const index = peers.findIndex((candidate) => candidate.id === entry.id);
+    const swap = peers[index + direction];
+    if (index < 0 || !swap) return;
+
+    commit(
+      `Reordered ${entry.name}`,
+      {
+        resourceType: entry.entryType,
+        operationType: "reorder-classpect",
+        sourceName: entry.name,
+      },
+      (draft) => {
+        const current = draft.classpectEntries.find(
+          (candidate) => candidate.id === entry.id,
+        );
+        const other = draft.classpectEntries.find(
+          (candidate) => candidate.id === swap.id,
+        );
+        if (!current || !other) return;
+        const previousOrder = current.displayOrder;
+        current.displayOrder = other.displayOrder;
+        other.displayOrder = previousOrder;
+      },
+    );
+  };
+
   const removeStatus = (status: ActiveStatusNote) => {
     setConfirmRequest({
       title: `Remove ${status.statusName}?`,
@@ -1726,7 +2203,7 @@ export default function SburbApp() {
       (entry) => entry.id === request.statId,
     );
     commit(
-      `${definition?.name ?? "Stat"} GM override ${
+      `${definition?.name ?? "Stat"} manual override ${
         request.enabled ? "saved" : "cleared"
       }`,
       {
@@ -1772,15 +2249,8 @@ export default function SburbApp() {
 
   const importCharacter = async (file: File) => {
     try {
-      const parsed = JSON.parse(await file.text()) as {
-        schemaVersion?: number;
-        character?: CharacterData;
-        resourceHistory?: ResourceChangeHistory[];
-      };
-      if (
-        parsed.schemaVersion !== SCHEMA_VERSION ||
-        parsed.character?.schemaVersion !== SCHEMA_VERSION
-      ) {
+      const parsed = migrateCharacterBackup(JSON.parse(await file.text()));
+      if (!parsed) {
         throw new Error("Unsupported schema");
       }
       setConfirmRequest({
@@ -1789,8 +2259,8 @@ export default function SburbApp() {
           "The imported character will replace the current local prototype data. Export first if you want to keep the current version.",
         confirmLabel: "Restore backup",
         action: () => {
-          setCharacter(clone(parsed.character as CharacterData));
-          setHistory(parsed.resourceHistory ?? []);
+          setCharacter(clone(parsed.character));
+          setHistory(parsed.history);
           setUndoStack([]);
           setConfirmRequest(null);
           setToast("Character backup restored.");
@@ -2003,15 +2473,35 @@ export default function SburbApp() {
           title="Character"
           description="Persistent identity, meters, character resources, and complete Stats."
           action={
-            <span className={`save-indicator ${hydrated ? "saved" : ""}`}>
-              <span />
-              {hydrated ? "Saved locally" : "Loading save…"}
-            </span>
+            <div className="authoring-actions">
+              <span className={`save-indicator ${hydrated ? "saved" : ""}`}>
+                <span />
+                {hydrated ? "Saved locally" : "Loading save…"}
+              </span>
+              <button
+                className="button button-primary"
+                onClick={openCharacterEditor}
+              >
+                Edit character
+              </button>
+            </div>
           }
         />
 
         <section className="identity-card panel">
-          <div className="portrait-large" aria-hidden="true">
+          <div
+            className={`portrait-large ${
+              character.identity.portraitUrl ? "has-image" : ""
+            }`}
+            style={
+              character.identity.portraitUrl
+                ? {
+                    backgroundImage: `url(${character.identity.portraitUrl})`,
+                  }
+                : undefined
+            }
+            aria-hidden="true"
+          >
             <span>{character.identity.portraitInitials}</span>
             <i>✦</i>
           </div>
@@ -2199,13 +2689,18 @@ export default function SburbApp() {
         title="Inventory"
         description="Manage equipped gear and carried items from one place, with complete rules, quantities, charges, and Affixes."
         action={
-          <button
-            className="button button-quiet"
-            onClick={undoLast}
-            disabled={!undoStack.length}
-          >
-            Undo last change
-          </button>
+          <div className="authoring-actions">
+            <button className="button button-primary" onClick={openNewItem}>
+              + New entry
+            </button>
+            <button
+              className="button button-quiet"
+              onClick={undoLast}
+              disabled={!undoStack.length}
+            >
+              Undo last change
+            </button>
+          </div>
         }
       />
       <section className="equipment-toolbar panel">
@@ -2302,6 +2797,11 @@ export default function SburbApp() {
             }
             onMoveCharge={(move) => updateMove(item.id, move.id, "charge")}
             onMoveUsed={(move) => updateMove(item.id, move.id, "used")}
+            onEdit={() =>
+              setItemEditor({ mode: "edit", item: clone(item) })
+            }
+            onDuplicate={() => duplicateInventoryItem(item)}
+            onDelete={() => requestDeleteItem(item)}
           />
         ))}
         {!filteredEquipment.length ? (
@@ -2324,7 +2824,6 @@ export default function SburbApp() {
       .filter(
         (entry) =>
           entry.entryType === type &&
-          entry.unlocked &&
           (filter === "All" || entry.category === filter),
       )
       .sort((a, b) => a.displayOrder - b.displayOrder)
@@ -2341,6 +2840,12 @@ export default function SburbApp() {
           }
           onSpendCharge={() => updateClasspectUse(entry.id, "charge")}
           onMarkUsed={() => updateClasspectUse(entry.id, "used")}
+          onEdit={() =>
+            setClasspectEditor({ mode: "edit", entry: clone(entry) })
+          }
+          onDuplicate={() => duplicateClasspect(entry)}
+          onDelete={() => requestDeleteClasspect(entry)}
+          onMove={(direction) => moveClasspectEntry(entry, direction)}
         />
       ));
 
@@ -2351,34 +2856,44 @@ export default function SburbApp() {
         title={`${character.identity.className} of ${character.identity.aspectName}`}
         description="Class Skills and Aspect Abilities stay separate, readable, and under Player control."
         action={
-          <div className="skill-points-callout">
-            <span>Available Skill Points</span>
-            <strong>{character.identity.skillPoints}</strong>
+          <div className="authoring-actions">
+            <button
+              className="button button-primary"
+              onClick={() => openNewClasspectEntry("Class Skill")}
+            >
+              + New Skill
+            </button>
+            <button
+              className="button button-muted"
+              onClick={() => openNewClasspectEntry("Aspect Ability")}
+            >
+              + New Ability
+            </button>
+            <div className="skill-points-callout">
+              <span>Available Skill Points</span>
+              <strong>{character.identity.skillPoints}</strong>
+            </div>
           </div>
         }
       />
       <section className="classpect-intro-grid">
         <article className="panel class-intro">
           <p className="eyebrow">Class · {character.identity.className}</p>
-          <h2>Read the shape of a problem.</h2>
-          <p>
-            Mina&apos;s Seer Skills expose useful paths and missing information.
-            The Player still explains the reading; the GM still rules on it.
-          </p>
+          <h2>Class Skill library</h2>
+          <p>{character.identity.classDescription}</p>
         </article>
         <article className="panel aspect-intro">
           <p className="eyebrow">Aspect · {character.identity.aspectName}</p>
-          <h2>Make significance impossible to ignore.</h2>
-          <p>
-            Light Abilities spotlight fortune, attention, and consequential
-            details without automating their tabletop effects.
-          </p>
+          <h2>Aspect Ability library</h2>
+          <p>{character.identity.aspectDescription}</p>
         </article>
       </section>
       <section className="panel classpect-section">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">Seer reference</p>
+            <p className="eyebrow">
+              {character.identity.className} reference
+            </p>
             <h2>Class Skills</h2>
           </div>
           <CategoryFilters value={classFilter} onChange={setClassFilter} />
@@ -2390,7 +2905,9 @@ export default function SburbApp() {
       <section className="panel classpect-section">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">Light reference</p>
+            <p className="eyebrow">
+              {character.identity.aspectName} reference
+            </p>
             <h2>Aspect Abilities</h2>
           </div>
           <CategoryFilters value={aspectFilter} onChange={setAspectFilter} />
@@ -2903,8 +3420,20 @@ export default function SburbApp() {
       <div className="app-column">
         <header className="persistent-header">
           <div className="header-identity">
-            <div className="portrait-small" aria-hidden="true">
-              {character.identity.portraitInitials}
+            <div
+              className={`portrait-small ${
+                character.identity.portraitUrl ? "has-image" : ""
+              }`}
+              style={
+                character.identity.portraitUrl
+                  ? {
+                      backgroundImage: `url(${character.identity.portraitUrl})`,
+                    }
+                  : undefined
+              }
+              aria-hidden="true"
+            >
+              <span>{character.identity.portraitInitials}</span>
             </div>
             <div>
               <strong>{character.identity.characterName}</strong>
@@ -2981,6 +3510,33 @@ export default function SburbApp() {
             <button onClick={undoLast}>Undo</button>
           ) : null}
         </div>
+      ) : null}
+
+      {characterDraft ? (
+        <CharacterEditor
+          draft={characterDraft}
+          onChange={setCharacterDraft}
+          onSave={saveCharacterEditor}
+          onClose={() => setCharacterDraft(null)}
+        />
+      ) : null}
+
+      {itemEditor ? (
+        <ItemEditor
+          state={itemEditor}
+          onChange={setItemEditor}
+          onSave={saveItemEditor}
+          onClose={() => setItemEditor(null)}
+        />
+      ) : null}
+
+      {classpectEditor ? (
+        <ClasspectEditor
+          state={classpectEditor}
+          onChange={setClasspectEditor}
+          onSave={saveClasspectEditor}
+          onClose={() => setClasspectEditor(null)}
+        />
       ) : null}
 
       {adjustment ? (
@@ -3330,7 +3886,7 @@ export default function SburbApp() {
 
       {statOverride ? (
         <ModalFrame
-          eyebrow="Prototype GM control"
+          eyebrow="Player-controlled calculation"
           title={`Override ${
             statDefinitions.find((entry) => entry.id === statOverride.statId)
               ?.name ?? "Stat"
@@ -3398,7 +3954,7 @@ export default function SburbApp() {
               className="button button-primary"
               onClick={() => saveStatOverride(statOverride)}
             >
-              Save GM override
+              Save manual override
             </button>
           </footer>
         </ModalFrame>
@@ -3716,7 +4272,7 @@ function AdjustmentModal({
               onChange={(event) => setIgnoreMaximum(event.target.checked)}
             />
             <span>
-              <strong>GM override maximum</strong>
+              <strong>Override maximum</strong>
               <small>Allow the resulting value to exceed its normal maximum.</small>
             </span>
           </label>

@@ -166,6 +166,8 @@ export interface ClasspectEntry {
   condition?: string;
   target?: string;
   roll?: string;
+  saveStat?: string;
+  saveDC?: number;
   effect: string;
   duration?: string;
   usageLimit?: string;
@@ -217,8 +219,11 @@ export interface CharacterIdentity {
   currentExp: number;
   expRequiredForNextLevel: number;
   className: string;
+  classDescription?: string;
   aspectName: string;
+  aspectDescription?: string;
   landName: string;
+  portraitUrl?: string;
   grist: number;
   boondollars: number;
   skillPoints: number;
