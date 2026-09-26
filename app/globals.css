@@ -800,7 +800,7 @@ a {
 
 .quick-action-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 0 22px 22px;
 }
@@ -854,6 +854,59 @@ a {
   color: var(--muted);
   font-size: 0.55em;
   font-weight: 600;
+}
+
+.editable-resource {
+  align-items: flex-start;
+}
+
+.editable-resource > div {
+  width: 100%;
+}
+
+.editable-resource-controls {
+  display: grid;
+  grid-template-columns: 44px minmax(64px, 1fr) 44px;
+  align-items: center;
+  gap: 7px;
+}
+
+.editable-resource-controls button {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: #102023;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.editable-resource-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.editable-resource-controls input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: #081416;
+  color: var(--text);
+  font: 800 1.1rem/1 ui-monospace, monospace;
+  text-align: center;
+}
+
+.editable-resource-detail {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-align: center;
 }
 
 .stepper-controls {
@@ -929,13 +982,13 @@ details > summary::-webkit-details-marker {
   background: var(--bg-raised);
 }
 
-.stat-category > summary {
+.stat-category-header {
   display: flex;
   min-height: 50px;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 11px 14px;
+  padding: 11px 12px 11px 14px;
   border-left: 3px solid var(--cyan);
   font-size: 0.86rem;
   font-weight: 800;
@@ -946,6 +999,20 @@ details > summary::-webkit-details-marker {
   font-family: ui-monospace, monospace;
   font-size: 0.59rem;
   font-weight: 600;
+}
+
+.stat-column-headings {
+  display: grid;
+  width: 157px;
+  grid-template-columns: 52px 52px 53px;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  font-size: 0.59rem;
+  font-weight: 600;
+}
+
+.stat-column-headings > span {
+  text-align: right;
 }
 
 .stat-list {
@@ -959,7 +1026,7 @@ details > summary::-webkit-details-marker {
 .stat-row > summary {
   display: grid;
   min-height: 50px;
-  grid-template-columns: minmax(0, 1fr) 62px 53px;
+  grid-template-columns: minmax(0, 1fr) 52px 52px 53px;
   align-items: center;
   padding: 0 12px;
   font-size: 0.82rem;
@@ -969,6 +1036,7 @@ details > summary::-webkit-details-marker {
   background: rgba(87, 231, 205, 0.05);
 }
 
+.stat-base,
 .stat-total,
 .stat-mod {
   font-family: ui-monospace, monospace;
@@ -993,34 +1061,72 @@ details > summary::-webkit-details-marker {
   line-height: 1.5;
 }
 
-.breakdown-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1px;
-  margin: 14px 0;
-  background: var(--line);
-}
-
-.breakdown-grid > div {
-  display: flex;
-  min-height: 49px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 9px;
+.stat-calculation {
+  max-width: 520px;
+  margin: 0 0 14px;
+  border: 1px solid var(--line);
   background: #0b1719;
 }
 
-.breakdown-grid dt {
-  color: var(--muted);
-  font-size: 0.62rem;
+.stat-calculation > div {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 11px;
 }
 
-.breakdown-grid dd {
+.stat-calculation > div + div {
+  border-top: 1px solid var(--line);
+}
+
+.stat-calculation dt {
+  color: var(--muted-strong);
+  font-size: 0.74rem;
+}
+
+.stat-calculation dd {
   margin: 0;
   font-family: ui-monospace, monospace;
-  font-size: 0.76rem;
+  font-size: 0.82rem;
   font-weight: 800;
+}
+
+.stat-calculation dd.positive {
+  color: var(--cyan);
+}
+
+.stat-calculation dd.negative {
+  color: var(--health);
+}
+
+.stat-calculation-base,
+.stat-calculation-total {
+  font-weight: 800;
+}
+
+.stat-calculation-total {
+  background: rgba(87, 231, 205, 0.06);
+}
+
+.stat-calculation-override {
+  color: var(--amber);
+}
+
+.stat-reference-copy {
+  margin-bottom: 12px;
+}
+
+.stat-reference-copy p {
+  margin-bottom: 6px;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.stat-growth {
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
 }
 
 .override-notice {
@@ -2927,7 +3033,7 @@ details > summary::-webkit-details-marker {
   }
 
   .quick-action-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .resource-grid {

@@ -450,6 +450,92 @@ function ResourceReadout({
   );
 }
 
+function EditableResourceCard({
+  label,
+  value,
+  detail,
+  minimum = 0,
+  maximum = Number.POSITIVE_INFINITY,
+  onCommit,
+}: {
+  label: string;
+  value: number;
+  detail?: string;
+  minimum?: number;
+  maximum?: number;
+  onCommit: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const normalize = (nextValue: number) =>
+    Math.max(minimum, Math.min(maximum, Math.trunc(nextValue)));
+
+  const commitDraft = () => {
+    const parsed = Number(draft);
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(value));
+      return;
+    }
+    const nextValue = normalize(parsed);
+    setDraft(String(nextValue));
+    onCommit(nextValue);
+  };
+
+  const adjust = (amount: number) => {
+    const nextValue = normalize(value + amount);
+    setDraft(String(nextValue));
+    onCommit(nextValue);
+  };
+
+  return (
+    <article className="resource-stepper editable-resource">
+      <div>
+        <label className="resource-label" htmlFor={`resource-${label}`}>
+          {label}
+        </label>
+        <div className="editable-resource-controls">
+          <button
+            type="button"
+            onClick={() => adjust(-1)}
+            aria-label={`Decrease ${label}`}
+            disabled={value <= minimum}
+          >
+            &minus;
+          </button>
+          <input
+            id={`resource-${label}`}
+            type="number"
+            min={minimum}
+            max={Number.isFinite(maximum) ? maximum : undefined}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={commitDraft}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+            }}
+            aria-label={label}
+          />
+          <button
+            type="button"
+            onClick={() => adjust(1)}
+            aria-label={`Increase ${label}`}
+            disabled={value >= maximum}
+          >
+            +
+          </button>
+        </div>
+        {detail ? (
+          <span className="editable-resource-detail">{detail}</span>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
 function StrifeCounter({
   label,
   value,
@@ -529,15 +615,29 @@ function StatSection({
     .filter((definition) => definition.category === category)
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
+  const getEquipmentEffects = (definitionId: string) =>
+    character.items
+      .filter((item) => item.equipped)
+      .flatMap((item) =>
+        item.statBonuses
+          .filter((bonus) => bonus.statDefinitionId === definitionId)
+          .map((bonus) => ({ label: item.name, amount: bonus.amount })),
+      );
+
   return (
-    <details className="stat-category" open>
-      <summary>
-        <span>{category} Stats</span>
-        <span className="summary-hint">Name · Total · Mod</span>
-      </summary>
+    <section className="stat-category">
+      <div className="stat-category-header">
+        <span>{category.toUpperCase()}</span>
+        <span className="stat-column-headings" aria-hidden="true">
+          <span>Base</span>
+          <span>Total</span>
+          <span>Mod</span>
+        </span>
+      </div>
       <div className="stat-list">
         {definitions.map((definition) => {
           const values = getStat(character, definition.id);
+          const equipmentEffects = getEquipmentEffects(definition.id);
           const stat = character.stats.find(
             (entry) => entry.definitionId === definition.id,
           );
@@ -545,55 +645,69 @@ function StatSection({
             <details className="stat-row" key={definition.id}>
               <summary>
                 <span className="stat-name">{definition.name}</span>
+                <span className="stat-base">{values.base}</span>
                 <span className="stat-total">{values.total}</span>
                 <span className="stat-mod">
                   {formatModifier(values.modifier)}
                 </span>
               </summary>
               <div className="stat-detail">
-                <p>{definition.description}</p>
-                <p className="muted-copy">{definition.uses.join(" · ")}</p>
-                <dl className="breakdown-grid">
-                  <div>
+                <dl className="stat-calculation">
+                  <div className="stat-calculation-base">
                     <dt>Base Stat</dt>
                     <dd>{values.base}</dd>
                   </div>
-                  <div>
-                    <dt>Equipment Bonus</dt>
-                    <dd>{formatModifier(values.equipment)}</dd>
-                  </div>
-                  <div>
-                    <dt>Other Persistent</dt>
-                    <dd>{formatModifier(values.other)}</dd>
-                  </div>
-                  <div>
-                    <dt>Temporary Modifier</dt>
-                    <dd>{formatModifier(values.temporary)}</dd>
-                  </div>
-                  <div>
-                    <dt>Penalties</dt>
-                    <dd>{values.penalty ? `−${values.penalty}` : "0"}</dd>
-                  </div>
-                  <div>
-                    <dt>Calculated Total</dt>
-                    <dd>{values.calculatedTotal}</dd>
-                  </div>
-                  <div>
-                    <dt>Total Stat</dt>
+                  {equipmentEffects.map((effect, index) => (
+                    <div key={`${effect.label}-${index}`}>
+                      <dt>{effect.label}</dt>
+                      <dd className={effect.amount < 0 ? "negative" : "positive"}>
+                        {formatModifier(effect.amount)}
+                      </dd>
+                    </div>
+                  ))}
+                  {values.other !== 0 ? (
+                    <div>
+                      <dt>Other Persistent</dt>
+                      <dd className={values.other < 0 ? "negative" : "positive"}>
+                        {formatModifier(values.other)}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {values.temporary !== 0 ? (
+                    <div>
+                      <dt>Temporary Modifier</dt>
+                      <dd className={values.temporary < 0 ? "negative" : "positive"}>
+                        {formatModifier(values.temporary)}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {values.penalty !== 0 ? (
+                    <div>
+                      <dt>Penalties</dt>
+                      <dd className="negative">{formatModifier(-values.penalty)}</dd>
+                    </div>
+                  ) : null}
+                  {values.overridden && stat?.manualTotalOverride !== undefined ? (
+                    <div className="stat-calculation-override">
+                      <dt>Manual Total Override</dt>
+                      <dd>= {stat.manualTotalOverride}</dd>
+                    </div>
+                  ) : null}
+                  <div className="stat-calculation-total">
+                    <dt>Stat Total</dt>
                     <dd>{values.total}</dd>
                   </div>
-                  <div>
-                    <dt>Stat Modifier</dt>
-                    <dd>{formatModifier(values.modifier)}</dd>
-                  </div>
-                  <div>
-                    <dt>Growth</dt>
-                    <dd>{stat?.growthFormula ?? "—"}</dd>
-                  </div>
                 </dl>
+                <div className="stat-reference-copy">
+                  <p>{definition.description}</p>
+                  <p className="muted-copy">{definition.uses.join(" · ")}</p>
+                  {stat?.growthFormula ? (
+                    <p className="stat-growth">Growth: {stat.growthFormula}</p>
+                  ) : null}
+                </div>
                 {values.overridden ? (
                   <p className="override-notice">
-                    Manual override active. Calculated values remain visible above.
+                    Manual override active.
                   </p>
                 ) : null}
                 <button
@@ -607,7 +721,7 @@ function StatSection({
           );
         })}
       </div>
-    </details>
+    </section>
   );
 }
 
@@ -1741,6 +1855,28 @@ export default function SburbApp() {
     );
   };
 
+  const updateIdentityResource = (
+    key: "grist" | "boondollars",
+    value: number,
+  ) => {
+    const nextValue = Math.max(0, Math.trunc(value));
+    if (nextValue === character.identity[key]) return;
+    const label = key === "grist" ? "Grist" : "Boondollars";
+    commit(
+      `${label} adjusted`,
+      {
+        resourceType: label,
+        operationType: "manual-adjustment",
+        previousValue: character.identity[key],
+        newValue: nextValue,
+        changeAmount: nextValue - character.identity[key],
+      },
+      (draft) => {
+        draft.identity[key] = nextValue;
+      },
+    );
+  };
+
   const openCharacterEditor = () => {
     setCharacterDraft(clone(character));
   };
@@ -2343,30 +2479,6 @@ export default function SburbApp() {
         Incoming damage
       </button>
       <button
-        className="button button-muted"
-        onClick={() => openAdjustment("hp-cost", 1)}
-      >
-        Pay HP cost
-      </button>
-      <button
-        className="button button-muted"
-        onClick={() => openAdjustment("pluck-cost", 1)}
-      >
-        Pay Pluck cost
-      </button>
-      <button
-        className="button button-muted"
-        onClick={() => openAdjustment("heal", 1)}
-      >
-        Heal
-      </button>
-      <button
-        className="button button-muted"
-        onClick={() => openAdjustment("pluck-restore", 1)}
-      >
-        Restore Pluck
-      </button>
-      <button
         className="button button-quiet"
         onClick={undoLast}
         disabled={!undoStack.length}
@@ -2385,8 +2497,16 @@ export default function SburbApp() {
           maximum={maximumHealth}
           tone="health"
           amountLabel="Health adjustment amount"
-          onSubtract={(amount) => openAdjustment("health-loss", amount)}
-          onAdd={(amount) => openAdjustment("heal", amount)}
+          onSubtract={(amount) =>
+            applyAdjustment(
+              { kind: "health-loss", amount },
+              false,
+              false,
+            )
+          }
+          onAdd={(amount) =>
+            applyAdjustment({ kind: "heal", amount }, false, false)
+          }
           onSet={() =>
             openAdjustment(
               "set-health",
@@ -2399,8 +2519,12 @@ export default function SburbApp() {
           current={character.resources.temporaryHealth}
           tone="temp"
           amountLabel="Temporary Health adjustment amount"
-          onSubtract={(amount) => openAdjustment("temp-remove", amount)}
-          onAdd={(amount) => openAdjustment("temp-gain", amount)}
+          onSubtract={(amount) =>
+            applyAdjustment({ kind: "temp-remove", amount }, false, false)
+          }
+          onAdd={(amount) =>
+            applyAdjustment({ kind: "temp-gain", amount }, false, false)
+          }
           onSet={() =>
             openAdjustment(
               "set-temp",
@@ -2414,8 +2538,12 @@ export default function SburbApp() {
           maximum={maximumPluck}
           tone="pluck"
           amountLabel="Pluck adjustment amount"
-          onSubtract={(amount) => openAdjustment("pluck-loss", amount)}
-          onAdd={(amount) => openAdjustment("pluck-restore", amount)}
+          onSubtract={(amount) =>
+            applyAdjustment({ kind: "pluck-loss", amount }, false, false)
+          }
+          onAdd={(amount) =>
+            applyAdjustment({ kind: "pluck-restore", amount }, false, false)
+          }
           onSet={() =>
             openAdjustment("set-pluck", character.resources.currentPluck)
           }
@@ -2430,28 +2558,33 @@ export default function SburbApp() {
       <ResourceReadout
         label="Maximum AP"
         value={maximumAP}
-        detail=" from Total Scamperway"
       />
       <DoomMarks
         value={character.resources.doomMarks}
         onChange={(value) => updateResource("doomMarks", value)}
       />
-      <ResourceReadout
+      <EditableResourceCard
         label="Short Rests"
         value={2 - character.resources.shortRestsUsed}
         detail=" / 2 remaining"
+        maximum={2}
+        onCommit={(remaining) =>
+          updateResource("shortRestsUsed", 2 - remaining)
+        }
       />
       <ResourceReadout
         label="Skill Points"
         value={character.identity.skillPoints}
       />
-      <ResourceReadout
+      <EditableResourceCard
         label="Grist"
-        value={formatNumber(character.identity.grist)}
+        value={character.identity.grist}
+        onCommit={(value) => updateIdentityResource("grist", value)}
       />
-      <ResourceReadout
+      <EditableResourceCard
         label="Boondollars"
-        value={formatNumber(character.identity.boondollars)}
+        value={character.identity.boondollars}
+        onCommit={(value) => updateIdentityResource("boondollars", value)}
       />
     </div>
   );
@@ -2564,7 +2697,6 @@ export default function SburbApp() {
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">Total ÷ 5, rounded down</p>
               <h2>Stats</h2>
             </div>
             <p>Equipment bonuses recalculate when gear changes.</p>
@@ -2579,11 +2711,11 @@ export default function SburbApp() {
               />
             ))}
           </div>
-          <details className="stat-category custom-stats" open>
-            <summary>
-              <span>Custom Stats</span>
+          <section className="stat-category custom-stats">
+            <div className="stat-category-header">
+              <span>CUSTOM</span>
               <span className="summary-hint">GM-defined behavior</span>
-            </summary>
+            </div>
             <div className="custom-stat-grid">
               {character.customStats
                 .slice()
@@ -2611,7 +2743,7 @@ export default function SburbApp() {
                   </article>
                 ))}
             </div>
-          </details>
+          </section>
         </section>
 
         <section className="panel backup-panel">

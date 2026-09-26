@@ -30,6 +30,8 @@ yarn-error.log*
 .pnpm-debug.log*
 dev_stdout.log
 dev_stderr.log
+mobile_dev_stdout.log
+mobile_dev_stderr.log
 
 # env files (can opt-in for committing if needed)
 .env*
