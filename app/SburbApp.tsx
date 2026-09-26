@@ -23,7 +23,7 @@ import {
   migratePersistedPrototype,
 } from "./persistence";
 import { SCHEMA_VERSION, seedCharacter, statDefinitions } from "./seed";
-import { previewIncomingDamage } from "./rules";
+import { getExpRequiredForNextLevel, previewIncomingDamage } from "./rules";
 import type {
   ActiveStatusNote,
   CharacterData,
@@ -1831,7 +1831,7 @@ export default function SburbApp() {
       doomMarks: [0, 3],
       surge: [0, Number.POSITIVE_INFINITY],
       stagger: [0, Number.POSITIVE_INFINITY],
-      shortRestsUsed: [0, 2],
+      shortRestsUsed: [0, character.resources.maximumShortRests],
       currentAP: [0, Number.POSITIVE_INFINITY],
     };
     const [minimum, maximum] = limits[key] ?? [
@@ -1885,15 +1885,13 @@ export default function SburbApp() {
     if (!characterDraft) return;
     const saved = clone(characterDraft);
     saved.schemaVersion = SCHEMA_VERSION;
-    saved.identity.level = Math.max(0, saved.identity.level);
-    saved.identity.currentExp = Math.max(0, saved.identity.currentExp);
-    saved.identity.expRequiredForNextLevel = Math.max(
-      0,
-      saved.identity.expRequiredForNextLevel,
+    saved.identity.level = Math.max(
+      1,
+      Math.min(20, Math.trunc(saved.identity.level)),
     );
+    saved.identity.currentExp = Math.max(0, saved.identity.currentExp);
     saved.identity.grist = Math.max(0, saved.identity.grist);
     saved.identity.boondollars = Math.max(0, saved.identity.boondollars);
-    saved.identity.skillPoints = Math.max(0, saved.identity.skillPoints);
     saved.resources.baseMaximumHealth = Math.max(
       0,
       saved.resources.baseMaximumHealth,
@@ -1906,9 +1904,16 @@ export default function SburbApp() {
       0,
       Math.min(3, saved.resources.doomMarks),
     );
+    saved.resources.maximumShortRests = Math.max(
+      0,
+      Math.trunc(saved.resources.maximumShortRests),
+    );
     saved.resources.shortRestsUsed = Math.max(
       0,
-      Math.min(2, saved.resources.shortRestsUsed),
+      Math.min(
+        saved.resources.maximumShortRests,
+        saved.resources.shortRestsUsed,
+      ),
     );
     saved.resources.currentHealth = Math.min(
       saved.resources.currentHealth,
@@ -2473,23 +2478,21 @@ export default function SburbApp() {
     ? character.items.find((item) => item.id === itemUseId) ?? null
     : null;
 
-  const renderQuickActions = () => (
-    <div className="quick-action-grid">
+  const renderQuickActions = (placement: "meters" | "strife") => (
+    <div
+      className={`quick-action-grid ${
+        placement === "meters" ? "meter-quick-actions" : ""
+      }`}
+    >
       <button className="button button-health" onClick={() => setDamageOpen(true)}>
-        Incoming damage
-      </button>
-      <button
-        className="button button-quiet"
-        onClick={undoLast}
-        disabled={!undoStack.length}
-      >
-        Undo last change
+        Calculate Incoming Damage
       </button>
     </div>
   );
 
   const renderMeters = () => (
     <>
+      {renderQuickActions("meters")}
       <div className="meter-grid">
         <MeterCard
           label="Health Vial"
@@ -2549,73 +2552,40 @@ export default function SburbApp() {
           }
         />
       </div>
-      {renderQuickActions()}
     </>
   );
 
-  const renderResources = () => (
-    <div className="resource-grid">
-      <ResourceReadout
-        label="Maximum AP"
-        value={maximumAP}
-      />
-      <DoomMarks
-        value={character.resources.doomMarks}
-        onChange={(value) => updateResource("doomMarks", value)}
-      />
-      <EditableResourceCard
-        label="Short Rests"
-        value={2 - character.resources.shortRestsUsed}
-        detail=" / 2 remaining"
-        maximum={2}
-        onCommit={(remaining) =>
-          updateResource("shortRestsUsed", 2 - remaining)
-        }
-      />
-      <ResourceReadout
-        label="Skill Points"
-        value={character.identity.skillPoints}
-      />
-      <EditableResourceCard
-        label="Grist"
-        value={character.identity.grist}
-        onCommit={(value) => updateIdentityResource("grist", value)}
-      />
-      <EditableResourceCard
-        label="Boondollars"
-        value={character.identity.boondollars}
-        onCommit={(value) => updateIdentityResource("boondollars", value)}
-      />
-    </div>
-  );
-
   const renderCharacter = () => {
+    const nextLevelExp = getExpRequiredForNextLevel(character.identity.level);
+    const remainingShortRests =
+      character.resources.maximumShortRests -
+      character.resources.shortRestsUsed;
     const expPercent = Math.max(
       0,
       Math.min(
         100,
-        (character.identity.currentExp /
-          character.identity.expRequiredForNextLevel) *
-          100,
+        nextLevelExp === null
+          ? 100
+          : (character.identity.currentExp / nextLevelExp) * 100,
       ),
     );
     return (
       <div className="page-stack">
         <SectionHeading
-          eyebrow="Player overview"
+          eyebrow="Player Overview"
           title="Character"
-          description="Persistent identity, meters, character resources, and complete Stats."
+          description="Persistent identity, meters, and complete Stats."
           action={
             <div className="authoring-actions">
               <span className={`save-indicator ${hydrated ? "saved" : ""}`}>
                 <span />
-                {hydrated ? "Saved locally" : "Loading save…"}
+                {hydrated ? "Saved Locally" : "Loading Save…"}
               </span>
               <button
                 className="button button-primary"
                 onClick={openCharacterEditor}
               >
-                Edit character
+                Edit Character
               </button>
             </div>
           }
@@ -2639,7 +2609,7 @@ export default function SburbApp() {
             <i>✦</i>
           </div>
           <div className="identity-main">
-            <p className="eyebrow">{character.identity.playerName}&apos;s character</p>
+            <p className="eyebrow">{character.identity.playerName}&apos;s Character</p>
             <h2>{character.identity.characterName}</h2>
             <p className="classpect-title">
               {character.identity.className} of {character.identity.aspectName}
@@ -2656,42 +2626,53 @@ export default function SburbApp() {
               <span>EXP</span>
               <strong>
                 {formatNumber(character.identity.currentExp)} /{" "}
-                {formatNumber(character.identity.expRequiredForNextLevel)}
+                {nextLevelExp === null ? "MAX" : formatNumber(nextLevelExp)}
               </strong>
             </div>
             <div
               className="exp-track"
               role="progressbar"
-              aria-label="Experience progress"
+              aria-label="Experience Progress"
               aria-valuemin={0}
-              aria-valuemax={character.identity.expRequiredForNextLevel}
+              aria-valuemax={Math.max(
+                1,
+                nextLevelExp ?? character.identity.currentExp,
+              )}
               aria-valuenow={character.identity.currentExp}
             >
               <span style={{ width: `${expPercent}%` }} />
             </div>
           </div>
+          <div className="character-action-grid">
+            <DoomMarks
+              value={character.resources.doomMarks}
+              onChange={(value) => updateResource("doomMarks", value)}
+            />
+            <button className="button character-action-button" type="button">
+              <span>Adjust EXP</span>
+            </button>
+            <button className="button character-action-button" type="button">
+              <span>Short Rest</span>
+              <small>
+                {remainingShortRests} / {character.resources.maximumShortRests}{" "}
+                Remaining
+              </small>
+            </button>
+            <button className="button character-action-button" type="button">
+              <span>Long Rest</span>
+            </button>
+          </div>
         </section>
 
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">Shared character state</p>
+              <p className="eyebrow">Shared Character State</p>
               <h2>Meters</h2>
             </div>
             <p>Negative Health and confirmed negative Pluck are supported.</p>
           </div>
           {renderMeters()}
-        </section>
-
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Character reference</p>
-              <h2>Persistent Resources</h2>
-            </div>
-            <p>Current AP, Surge, and Stagger are controlled only in Strife.</p>
-          </div>
-          {renderResources()}
         </section>
 
         <section className="panel">
@@ -2773,7 +2754,7 @@ export default function SburbApp() {
                 }}
               />
               <button className="button button-danger" onClick={resetDemo}>
-                Reset demo
+                Reset Demo
               </button>
             </div>
           </div>
@@ -2817,24 +2798,34 @@ export default function SburbApp() {
     return (
       <div className="page-stack">
       <SectionHeading
-        eyebrow={`${character.items.length} owned entries`}
+        eyebrow={`${character.items.length} Owned Entries`}
         title="Inventory"
         description="Manage equipped gear and carried items from one place, with complete rules, quantities, charges, and Affixes."
         action={
           <div className="authoring-actions">
             <button className="button button-primary" onClick={openNewItem}>
-              + New entry
-            </button>
-            <button
-              className="button button-quiet"
-              onClick={undoLast}
-              disabled={!undoStack.length}
-            >
-              Undo last change
+              + New Entry
             </button>
           </div>
         }
       />
+      <section className="inventory-currency panel" aria-label="Campaign Currency">
+        <div className="inventory-currency-heading">
+          <p className="eyebrow">Campaign Currency</p>
+        </div>
+        <div className="inventory-currency-grid">
+          <EditableResourceCard
+            label="Grist"
+            value={character.identity.grist}
+            onCommit={(value) => updateIdentityResource("grist", value)}
+          />
+          <EditableResourceCard
+            label="Boondollars"
+            value={character.identity.boondollars}
+            onCommit={(value) => updateIdentityResource("boondollars", value)}
+          />
+        </div>
+      </section>
       <section className="equipment-toolbar panel">
         <div
           className="inventory-primary-tabs"
@@ -3001,10 +2992,6 @@ export default function SburbApp() {
             >
               + New Ability
             </button>
-            <div className="skill-points-callout">
-              <span>Available Skill Points</span>
-              <strong>{character.identity.skillPoints}</strong>
-            </div>
           </div>
         }
       />
@@ -3435,7 +3422,9 @@ export default function SburbApp() {
           <strong>{character.resources.doomMarks} / 3</strong>
         </div>
       </section>
-      <section className="strife-quickbar">{renderQuickActions()}</section>
+      <section className="strife-quickbar">
+        {renderQuickActions("strife")}
+      </section>
       {renderStatusStrip()}
       <section className="turn-notes panel">
         <label htmlFor="turn-notes">
@@ -3686,8 +3675,8 @@ export default function SburbApp() {
 
       {damageOpen ? (
         <ModalFrame
-          eyebrow="Final amount from the GM"
-          title="Incoming Damage"
+          eyebrow="Final Amount From the GM"
+          title="Calculate Incoming Damage"
           onClose={() => setDamageOpen(false)}
         >
           <div className="modal-body">

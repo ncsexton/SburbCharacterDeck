@@ -116,7 +116,6 @@ export const seedCharacter: CharacterData = {
     portraitInitials: "MQ",
     level: 7,
     currentExp: 2850,
-    expRequiredForNextLevel: 3600,
     className: "Seer",
     classDescription:
       "Seers expose useful paths, hidden connections, and missing information without resolving the Player’s choices for them.",
@@ -126,7 +125,6 @@ export const seedCharacter: CharacterData = {
     landName: "Land of Lanterns and Labyrinths",
     grist: 1840,
     boondollars: 612,
-    skillPoints: 3,
     notes:
       "Keeps a handwritten index of every suspicious coincidence. Definitely not superstitious.",
   },
@@ -140,6 +138,7 @@ export const seedCharacter: CharacterData = {
     doomMarks: 1,
     surge: 2,
     stagger: 1,
+    maximumShortRests: 2,
     shortRestsUsed: 1,
   },
   stats: [

@@ -6,6 +6,34 @@ export type BasicDamageType =
 
 export type DamageProperty = "None" | "Piercing";
 
+export const TOTAL_EXP_BY_LEVEL: Readonly<Record<number, number>> = {
+  1: 0,
+  2: 500,
+  3: 2_100,
+  4: 4_000,
+  5: 7_000,
+  6: 12_000,
+  7: 18_500,
+  8: 27_000,
+  9: 37_500,
+  10: 50_000,
+  11: 63_000,
+  12: 76_400,
+  13: 90_300,
+  14: 104_600,
+  15: 119_400,
+  16: 134_600,
+  17: 150_300,
+  18: 166_400,
+  19: 183_000,
+  20: 200_000,
+};
+
+export function getExpRequiredForNextLevel(level: number): number | null {
+  const normalizedLevel = Math.max(1, Math.trunc(level));
+  return TOTAL_EXP_BY_LEVEL[normalizedLevel + 1] ?? null;
+}
+
 export interface DamagePreviewInput {
   incomingDamage: number;
   damageType: BasicDamageType;

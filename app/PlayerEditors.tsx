@@ -419,7 +419,7 @@ export function CharacterEditor({
 
   return (
     <EditorModal
-      eyebrow="Player-owned character data"
+      eyebrow="Player-Owned Character Data"
       title={`Edit ${draft.identity.characterName}`}
       onClose={onClose}
     >
@@ -427,7 +427,7 @@ export function CharacterEditor({
         <EditorSection title="Identity">
           <div className="form-grid">
             <label className="field">
-              <span>Player name</span>
+              <span>Player Name</span>
               <input
                 value={draft.identity.playerName}
                 onChange={(event) =>
@@ -436,7 +436,7 @@ export function CharacterEditor({
               />
             </label>
             <label className="field">
-              <span>Character name</span>
+              <span>Character Name</span>
               <input
                 required
                 value={draft.identity.characterName}
@@ -446,7 +446,7 @@ export function CharacterEditor({
               />
             </label>
             <label className="field">
-              <span>Portrait initials</span>
+              <span>Portrait Initials</span>
               <input
                 maxLength={3}
                 value={draft.identity.portraitInitials}
@@ -459,7 +459,7 @@ export function CharacterEditor({
               />
             </label>
             <label className="field">
-              <span>Portrait image URL</span>
+              <span>Portrait Image URL</span>
               <input
                 type="url"
                 placeholder="Optional HTTPS image"
@@ -491,7 +491,7 @@ export function CharacterEditor({
               />
             </label>
             <label className="field field-wide">
-              <span>Class description</span>
+              <span>Class Description</span>
               <textarea
                 value={draft.identity.classDescription ?? ""}
                 onChange={(event) =>
@@ -500,7 +500,7 @@ export function CharacterEditor({
               />
             </label>
             <label className="field field-wide">
-              <span>Aspect description</span>
+              <span>Aspect Description</span>
               <textarea
                 value={draft.identity.aspectDescription ?? ""}
                 onChange={(event) =>
@@ -509,7 +509,7 @@ export function CharacterEditor({
               />
             </label>
             <label className="field field-wide">
-              <span>Land name</span>
+              <span>Land Name</span>
               <input
                 value={draft.identity.landName}
                 onChange={(event) =>
@@ -518,7 +518,7 @@ export function CharacterEditor({
               />
             </label>
             <label className="field field-wide">
-              <span>Character notes</span>
+              <span>Character Notes</span>
               <textarea
                 value={draft.identity.notes}
                 onChange={(event) =>
@@ -529,38 +529,54 @@ export function CharacterEditor({
           </div>
         </EditorSection>
 
-        <EditorSection
-          title="Progression and campaign resources"
-          description="These are direct Player-entered values. Nothing awards levels or spends currency automatically."
-        >
+        <EditorSection title="Progression and Campaign Resources">
           <div className="form-grid form-grid-three">
             {[
               ["level", "Echeladder Level"],
               ["currentExp", "Current EXP"],
-              ["expRequiredForNextLevel", "EXP required for next level"],
-              ["skillPoints", "Skill Points"],
-              ["grist", "Grist"],
-              ["boondollars", "Boondollars"],
             ].map(([key, label]) => (
               <label className="field" key={key}>
                 <span>{label}</span>
                 <input
                   type="number"
-                  min={0}
+                  min={key === "level" ? 1 : 0}
+                  max={key === "level" ? 20 : undefined}
                   value={draft.identity[key as keyof typeof draft.identity] as number}
                   onChange={(event) =>
-                    updateIdentity(key as keyof typeof draft.identity, Math.max(0, Number(event.target.value) || 0))
+                    updateIdentity(
+                      key as keyof typeof draft.identity,
+                      key === "level"
+                        ? Math.max(
+                            1,
+                            Math.min(
+                              20,
+                              Math.trunc(Number(event.target.value) || 1),
+                            ),
+                          )
+                        : Math.max(0, Number(event.target.value) || 0),
+                    )
                   }
                 />
               </label>
             ))}
+            <label className="field">
+              <span>Maximum Short Rests</span>
+              <input
+                type="number"
+                min={0}
+                value={draft.resources.maximumShortRests}
+                onChange={(event) =>
+                  updateResource(
+                    "maximumShortRests",
+                    Math.max(0, Math.trunc(Number(event.target.value) || 0)),
+                  )
+                }
+              />
+            </label>
           </div>
         </EditorSection>
 
-        <EditorSection
-          title="Persistent resource foundations"
-          description="Current Health and Pluck remain available through their dedicated meter controls."
-        >
+        <EditorSection title="Persistent Resource Foundations">
           <div className="form-grid form-grid-three">
             <label className="field">
               <span>Base Maximum Health</span>
@@ -586,21 +602,6 @@ export function CharacterEditor({
                   updateResource(
                     "baseMaximumPluck",
                     Math.max(0, Number(event.target.value) || 0),
-                  )
-                }
-              />
-            </label>
-            <label className="field">
-              <span>Short Rests used</span>
-              <input
-                type="number"
-                min={0}
-                max={2}
-                value={draft.resources.shortRestsUsed}
-                onChange={(event) =>
-                  updateResource(
-                    "shortRestsUsed",
-                    Math.max(0, Math.min(2, Number(event.target.value) || 0)),
                   )
                 }
               />
@@ -718,7 +719,7 @@ export function CharacterEditor({
                       />
                     </label>
                     <label className="field">
-                      <span>Modifier behavior</span>
+                      <span>Modifier Behavior</span>
                       <select
                         value={stat.modifierType}
                         onChange={(event) =>
@@ -735,7 +736,7 @@ export function CharacterEditor({
                       </select>
                     </label>
                     <label className="field">
-                      <span>Current value</span>
+                      <span>Current Value</span>
                       <input
                         type="number"
                         value={stat.value}
@@ -747,7 +748,7 @@ export function CharacterEditor({
                       />
                     </label>
                     <label className="field">
-                      <span>Modifier or bonus</span>
+                      <span>Modifier or Bonus</span>
                       <input
                         type="number"
                         value={stat.bonus}
@@ -759,7 +760,7 @@ export function CharacterEditor({
                       />
                     </label>
                     <label className="field">
-                      <span>Linked standard Stat</span>
+                      <span>Linked Standard Stat</span>
                       <select
                         value={stat.linkedStandardStat ?? ""}
                         onChange={(event) =>
@@ -778,7 +779,7 @@ export function CharacterEditor({
                       </select>
                     </label>
                     <label className="field">
-                      <span>Growth information</span>
+                      <span>Growth Information</span>
                       <input
                         value={stat.growthInfo ?? ""}
                         onChange={(event) =>
@@ -824,7 +825,7 @@ export function CharacterEditor({
                       }
                       disabled={index === 0}
                     >
-                      Move up
+                      Move Up
                     </button>
                     <button
                       className="button button-quiet"
@@ -838,7 +839,7 @@ export function CharacterEditor({
                       }
                       disabled={index === draft.customStats.length - 1}
                     >
-                      Move down
+                      Move Down
                     </button>
                     <button
                       className="button button-danger"
@@ -885,7 +886,7 @@ export function CharacterEditor({
           onClick={onSave}
           disabled={!draft.identity.characterName.trim()}
         >
-          Save character sheet
+          Save Character Sheet
         </button>
       </footer>
     </EditorModal>

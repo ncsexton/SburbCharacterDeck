@@ -647,6 +647,50 @@ a {
   background: var(--cyan);
 }
 
+.character-action-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(190px, 1.35fr) repeat(3, minmax(130px, 1fr));
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.character-action-grid .resource-stepper {
+  min-height: 64px;
+  padding: 10px 14px;
+}
+
+.character-action-grid .resource-caption {
+  display: none;
+}
+
+.character-action-grid .doom-marks button {
+  min-height: 30px;
+}
+
+.character-action-button {
+  display: flex;
+  min-height: 64px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-color: var(--line-strong);
+  background: var(--bg-raised);
+}
+
+.character-action-button:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.character-action-button small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
 .meter-grid {
   display: grid;
   grid-template-columns: 1fr 0.8fr 1fr;
@@ -800,9 +844,13 @@ a {
 
 .quick-action-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 8px;
   padding: 0 22px 22px;
+}
+
+.meter-quick-actions {
+  padding: 20px 22px 0;
 }
 
 .resource-grid {
@@ -1495,6 +1543,35 @@ details > summary::-webkit-details-marker {
   padding: 14px;
   background: rgba(14, 28, 30, 0.96);
   backdrop-filter: blur(15px);
+}
+
+.inventory-currency {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.inventory-currency-heading {
+  display: flex;
+  min-width: 190px;
+  align-items: center;
+  padding: 18px 20px;
+  border-right: 1px solid var(--line);
+}
+
+.inventory-currency-heading p {
+  margin: 0;
+}
+
+.inventory-currency-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.inventory-currency-grid .resource-stepper {
+  min-height: 76px;
 }
 
 .inventory-primary-tabs {
@@ -3258,6 +3335,28 @@ details > summary::-webkit-details-marker {
     grid-column: 1 / -1;
   }
 
+  .character-action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .character-action-grid .doom-card,
+  .character-action-grid .character-action-button:first-of-type {
+    grid-column: 1 / -1;
+  }
+
+  .character-action-grid .doom-card {
+    min-height: 58px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .character-action-button {
+    min-height: 58px;
+    padding-inline: 8px;
+  }
+
   .panel-heading {
     gap: 12px;
     padding: 17px 15px 14px;
@@ -3301,13 +3400,33 @@ details > summary::-webkit-details-marker {
   }
 
   .quick-action-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     padding: 0 13px 15px;
+  }
+
+  .meter-quick-actions {
+    padding: 13px 13px 0;
   }
 
   .resource-grid {
     gap: 7px;
     padding: 13px;
+  }
+
+  .inventory-currency {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-currency-heading {
+    min-width: 0;
+    padding: 14px 15px 0;
+    border-right: 0;
+  }
+
+  .inventory-currency-grid {
+    grid-template-columns: 1fr;
+    gap: 7px;
+    padding: 12px 13px 13px;
   }
 
   .resource-stepper {

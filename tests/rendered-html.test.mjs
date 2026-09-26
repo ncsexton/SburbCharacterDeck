@@ -5,7 +5,11 @@ import {
   migrateCharacterBackup,
   migratePersistedPrototype,
 } from "../app/persistence.ts";
-import { previewIncomingDamage } from "../app/rules.ts";
+import {
+  getExpRequiredForNextLevel,
+  previewIncomingDamage,
+  TOTAL_EXP_BY_LEVEL,
+} from "../app/rules.ts";
 import { SCHEMA_VERSION, seedCharacter } from "../app/seed.ts";
 
 async function render(path = "/") {
@@ -45,8 +49,13 @@ test("server-renders the SBURB Player prototype", async () => {
   assert.match(html, /Inventory/);
   assert.match(html, /Classpect/);
   assert.match(html, /Strife/);
-  assert.match(html, /Maximum AP/);
-  assert.match(html, /Edit character/);
+  assert.match(html, /Edit Character/);
+  assert.match(html, /Calculate Incoming Damage/);
+  assert.match(html, /Adjust EXP/);
+  assert.match(html, /Short Rest/);
+  assert.match(html, /Long Rest/);
+  assert.doesNotMatch(html, /Persistent Resources/);
+  assert.doesNotMatch(html, /Skill Points/);
   assert.doesNotMatch(html, />\s*Surge\s*</);
   assert.doesNotMatch(html, />\s*Stagger\s*</);
   assert.doesNotMatch(html, /Equipped Equipment|Inventory Summary/);
@@ -83,7 +92,8 @@ test("keeps the prototype source-of-truth content and removes the starter", asyn
   assert.match(source, /applyHealthRemoval/);
   assert.match(source, /window\.localStorage/);
   assert.match(source, /Export JSON/);
-  assert.match(source, /Incoming Damage/);
+  assert.match(source, /Calculate Incoming Damage/);
+  assert.match(source, /inventory-currency/);
   assert.match(source, /header-temp-health/);
   assert.match(source, /inventory-primary-tabs/);
   assert.match(source, /updateResource\("surge"/);
@@ -195,6 +205,35 @@ test("calculates the required incoming-damage cases", () => {
   assert.equal(buffered.healthLost, 6);
   assert.equal(buffered.resultingTemporaryHealth, 0);
   assert.equal(buffered.resultingHealth, 24);
+});
+
+test("uses the total Echeladder EXP thresholds", () => {
+  assert.deepEqual(TOTAL_EXP_BY_LEVEL, {
+    1: 0,
+    2: 500,
+    3: 2100,
+    4: 4000,
+    5: 7000,
+    6: 12000,
+    7: 18500,
+    8: 27000,
+    9: 37500,
+    10: 50000,
+    11: 63000,
+    12: 76400,
+    13: 90300,
+    14: 104600,
+    15: 119400,
+    16: 134600,
+    17: 150300,
+    18: 166400,
+    19: 183000,
+    20: 200000,
+  });
+  assert.equal(getExpRequiredForNextLevel(1), 500);
+  assert.equal(getExpRequiredForNextLevel(7), 27000);
+  assert.equal(getExpRequiredForNextLevel(19), 200000);
+  assert.equal(getExpRequiredForNextLevel(20), null);
 });
 
 test("halves Piercing defense upward and permits negative resulting Health", () => {

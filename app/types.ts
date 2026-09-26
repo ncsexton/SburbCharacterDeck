@@ -205,6 +205,7 @@ export interface CharacterResources {
   doomMarks: number;
   surge: number;
   stagger: number;
+  maximumShortRests: number;
   shortRestsUsed: number;
 }
 
@@ -217,7 +218,6 @@ export interface CharacterIdentity {
   portraitInitials: string;
   level: number;
   currentExp: number;
-  expRequiredForNextLevel: number;
   className: string;
   classDescription?: string;
   aspectName: string;
@@ -226,7 +226,6 @@ export interface CharacterIdentity {
   portraitUrl?: string;
   grist: number;
   boondollars: number;
-  skillPoints: number;
   notes: string;
 }
 

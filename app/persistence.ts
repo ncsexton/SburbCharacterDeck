@@ -40,6 +40,32 @@ function migrateCharacter(input: unknown): CharacterData | null {
     "Player-authored Class Skill reference.";
   migrated.identity.aspectDescription ??=
     "Player-authored Aspect Ability reference.";
+  delete (
+    migrated.identity as typeof migrated.identity & {
+      expRequiredForNextLevel?: number;
+    }
+  ).expRequiredForNextLevel;
+  delete (
+    migrated.identity as typeof migrated.identity & {
+      skillPoints?: number;
+    }
+  ).skillPoints;
+  migrated.identity.level = Math.max(
+    1,
+    Math.min(20, Math.trunc(migrated.identity.level || 1)),
+  );
+  migrated.resources.maximumShortRests ??= 2;
+  migrated.resources.maximumShortRests = Math.max(
+    0,
+    Math.trunc(migrated.resources.maximumShortRests),
+  );
+  migrated.resources.shortRestsUsed = Math.max(
+    0,
+    Math.min(
+      migrated.resources.maximumShortRests,
+      Math.trunc(migrated.resources.shortRestsUsed ?? 0),
+    ),
+  );
 
   return migrated;
 }
