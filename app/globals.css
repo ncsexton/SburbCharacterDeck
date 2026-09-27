@@ -2260,9 +2260,101 @@ details > summary::-webkit-details-marker {
   color: var(--health);
 }
 
+.strife-meter-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 1px;
+  overflow: hidden;
+  background: var(--line);
+}
+
+.strife-meter-panel::before {
+  background: var(--health);
+}
+
+.strife-meter {
+  display: grid;
+  min-width: 0;
+  min-height: 104px;
+  align-content: center;
+  gap: 10px;
+  padding: 14px 17px;
+  border: 0;
+  background: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.strife-meter:hover,
+.strife-meter:focus-visible {
+  background: #102326;
+}
+
+.strife-meter-heading,
+.strife-meter-caption {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.strife-meter-heading > span,
+.strife-meter-caption {
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.strife-meter-heading strong {
+  font-size: 1rem;
+}
+
+.strife-stacked-track {
+  position: relative;
+  display: block;
+  height: 13px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  background: #071113;
+}
+
+.strife-stacked-track > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: block;
+}
+
+.strife-health-fill {
+  left: 0;
+  background: var(--health);
+}
+
+.strife-temp-fill {
+  background: var(--amber);
+}
+
+.strife-pluck-fill {
+  left: 0;
+  background: var(--pluck);
+}
+
+.temp-health-label {
+  color: var(--amber);
+}
+
+.strife-meter-controls {
+  grid-template-columns: 1fr;
+}
+
 .strife-resource-bar {
   display: grid;
-  grid-template-columns: 1.2fr 0.7fr 1.2fr repeat(3, 1.25fr) 0.8fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 0.8fr;
   overflow: hidden;
 }
 
@@ -3758,6 +3850,21 @@ details > summary::-webkit-details-marker {
 
   .strife-resource-bar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .strife-meter {
+    min-height: 92px;
+    gap: 8px;
+    padding: 11px 12px;
+  }
+
+  .strife-meter-heading,
+  .strife-meter-caption {
+    gap: 5px;
+  }
+
+  .strife-meter-caption > span:last-child {
+    display: none;
   }
 
   .strife-resource-bar > button,

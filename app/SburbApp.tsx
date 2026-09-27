@@ -1330,6 +1330,9 @@ export default function SburbApp() {
   const [restKind, setRestKind] = useState<RestKind | null>(null);
   const [expAdjustmentOpen, setExpAdjustmentOpen] = useState(false);
   const [expAdjustmentAmount, setExpAdjustmentAmount] = useState(0);
+  const [strifeMeterOpen, setStrifeMeterOpen] = useState<
+    "health" | "pluck" | null
+  >(null);
   const [levelUpOpen, setLevelUpOpen] = useState(false);
   const [growthRolls, setGrowthRolls] = useState<Record<string, string>>({});
   const [damageAmount, setDamageAmount] = useState(15);
@@ -3581,23 +3584,99 @@ export default function SburbApp() {
           </span>
         }
       />
+      <section className="strife-meter-panel panel" aria-label="Strife Meters">
+        <button
+          className="strife-meter strife-health-meter"
+          type="button"
+          onClick={() => setStrifeMeterOpen("health")}
+          aria-label={`Health Vial ${character.resources.currentHealth} of ${maximumHealth}, Temporary Health ${character.resources.temporaryHealth}. Open quick controls.`}
+        >
+          <span className="strife-meter-heading">
+            <span>Health Vial</span>
+            <strong>
+              {character.resources.currentHealth} / {maximumHealth}
+            </strong>
+          </span>
+          <span className="strife-stacked-track" aria-hidden="true">
+            <span
+              className="strife-health-fill"
+              style={{
+                width: `${Math.max(
+                  0,
+                  Math.min(
+                    100,
+                    maximumHealth > 0
+                      ? (character.resources.currentHealth / maximumHealth) * 100
+                      : 0,
+                  ),
+                )}%`,
+              }}
+            />
+            <span
+              className="strife-temp-fill"
+              style={{
+                left: `${Math.max(
+                  0,
+                  Math.min(
+                    100,
+                    maximumHealth > 0
+                      ? (character.resources.currentHealth / maximumHealth) * 100
+                      : 0,
+                  ),
+                )}%`,
+                width: `${Math.max(
+                  0,
+                  maximumHealth > 0
+                    ? (character.resources.temporaryHealth / maximumHealth) * 100
+                    : character.resources.temporaryHealth > 0
+                      ? 100
+                      : 0,
+                )}%`,
+              }}
+            />
+          </span>
+          <span className="strife-meter-caption">
+            <span className="temp-health-label">
+              Temp +{character.resources.temporaryHealth}
+            </span>
+            <span>Tap for controls</span>
+          </span>
+        </button>
+        <button
+          className="strife-meter strife-pluck-meter"
+          type="button"
+          onClick={() => setStrifeMeterOpen("pluck")}
+          aria-label={`Pluck ${character.resources.currentPluck} of ${maximumPluck}. Open quick controls.`}
+        >
+          <span className="strife-meter-heading">
+            <span>Pluck</span>
+            <strong>
+              {character.resources.currentPluck} / {maximumPluck}
+            </strong>
+          </span>
+          <span className="strife-stacked-track" aria-hidden="true">
+            <span
+              className="strife-pluck-fill"
+              style={{
+                width: `${Math.max(
+                  0,
+                  Math.min(
+                    100,
+                    maximumPluck > 0
+                      ? (character.resources.currentPluck / maximumPluck) * 100
+                      : 0,
+                  ),
+                )}%`,
+              }}
+            />
+          </span>
+          <span className="strife-meter-caption">
+            <span>Supernatural Resource</span>
+            <span>Tap for controls</span>
+          </span>
+        </button>
+      </section>
       <section className="strife-resource-bar panel">
-        <button onClick={() => openAdjustment("set-health", character.resources.currentHealth)}>
-          <span>HP</span>
-          <strong>
-            {character.resources.currentHealth} / {maximumHealth}
-          </strong>
-        </button>
-        <button onClick={() => openAdjustment("set-temp", character.resources.temporaryHealth)}>
-          <span>Temp</span>
-          <strong>{character.resources.temporaryHealth}</strong>
-        </button>
-        <button onClick={() => openAdjustment("set-pluck", character.resources.currentPluck)}>
-          <span>Pluck</span>
-          <strong>
-            {character.resources.currentPluck} / {maximumPluck}
-          </strong>
-        </button>
         <StrifeCounter
           label="AP"
           value={character.resources.currentAP}
@@ -3886,6 +3965,89 @@ export default function SburbApp() {
           onSave={saveClasspectEditor}
           onClose={() => setClasspectEditor(null)}
         />
+      ) : null}
+
+      {strifeMeterOpen ? (
+        <ModalFrame
+          eyebrow="Strife Quick Controls"
+          title={strifeMeterOpen === "health" ? "Health Vial" : "Pluck"}
+          onClose={() => setStrifeMeterOpen(null)}
+        >
+          <div className="modal-body strife-meter-controls">
+            {strifeMeterOpen === "health" ? (
+              <>
+                <MeterCard
+                  label="Health Vial"
+                  current={character.resources.currentHealth}
+                  maximum={maximumHealth}
+                  tone="health"
+                  onSubtract={subtractDirectlyFromHealth}
+                  onAdd={(amount) =>
+                    applyAdjustment({ kind: "heal", amount }, false, false)
+                  }
+                  onSet={() => {
+                    setStrifeMeterOpen(null);
+                    openAdjustment(
+                      "set-health",
+                      character.resources.currentHealth,
+                    );
+                  }}
+                />
+                <MeterCard
+                  label="Temporary Health"
+                  current={character.resources.temporaryHealth}
+                  tone="temp"
+                  onSubtract={(amount) =>
+                    applyAdjustment(
+                      { kind: "temp-remove", amount },
+                      false,
+                      false,
+                    )
+                  }
+                  onAdd={(amount) =>
+                    applyAdjustment(
+                      { kind: "temp-gain", amount },
+                      false,
+                      false,
+                    )
+                  }
+                  onSet={() => {
+                    setStrifeMeterOpen(null);
+                    openAdjustment(
+                      "set-temp",
+                      character.resources.temporaryHealth,
+                    );
+                  }}
+                />
+              </>
+            ) : (
+              <MeterCard
+                label="Pluck"
+                current={character.resources.currentPluck}
+                maximum={maximumPluck}
+                tone="pluck"
+                onSubtract={(amount) =>
+                  applyAdjustment(
+                    { kind: "pluck-loss", amount },
+                    true,
+                    false,
+                  )
+                }
+                onAdd={(amount) =>
+                  applyAdjustment(
+                    { kind: "pluck-restore", amount },
+                    false,
+                    false,
+                  )
+                }
+                onSet={() => {
+                  setStrifeMeterOpen(null);
+                  openAdjustment("set-pluck", character.resources.currentPluck);
+                }}
+              />
+            )}
+          </div>
+        </ModalFrame>
       ) : null}
 
       {expAdjustmentOpen ? (
