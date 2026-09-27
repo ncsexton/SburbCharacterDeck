@@ -547,6 +547,7 @@ a {
   transform: rotate(45deg);
   border: 1px solid rgba(87, 231, 205, 0.1);
   content: "";
+  pointer-events: none;
 }
 
 .portrait-large {
@@ -618,6 +619,8 @@ a {
 }
 
 .exp-block {
+  position: relative;
+  z-index: 1;
   grid-column: 2 / 4;
 }
 
@@ -2813,6 +2816,7 @@ details > summary::-webkit-details-marker {
 .level-up-row > div,
 .level-up-input {
   display: grid;
+  min-width: 0;
   gap: 5px;
 }
 
@@ -2835,7 +2839,10 @@ details > summary::-webkit-details-marker {
 }
 
 .level-up-input input {
+  width: 100%;
+  min-width: 0;
   min-height: 44px;
+  box-sizing: border-box;
   padding: 8px 10px;
 }
 
