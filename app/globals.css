@@ -1798,17 +1798,36 @@ details > summary::-webkit-details-marker {
   text-transform: uppercase;
 }
 
+.rarity-common {
+  color: var(--text);
+}
+
+.rarity-uncommon {
+  color: var(--cyan);
+}
+
 .rarity-rare {
   color: #9cb6ff;
 }
 
-.rarity-fabled,
-.rarity-unique {
+.rarity-legendary {
+  color: #de9cff;
+}
+
+.rarity-mythic {
+  color: #ff667d;
+}
+
+.rarity-exotic {
   color: var(--amber);
 }
 
-.rarity-exceptional {
-  color: #de9cff;
+.item-tag {
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  color: var(--muted-strong);
+  font-size: 0.59rem;
+  text-transform: uppercase;
 }
 
 .equipped-dot {

@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { statDefinitions } from "./seed";
+import { ITEM_RARITIES } from "./itemRules";
 import type {
   Affix,
   CharacterData,
@@ -162,6 +163,7 @@ export function createBlankItem(
     name: itemType === "Weapon" ? "New Weapon" : "New Item",
     itemType,
     rarity: "Common",
+    tags: [],
     quantity: 1,
     shortDescription: "",
     fullDescription: "",
@@ -1522,10 +1524,18 @@ export function ItemEditor({
             </label>
             <label className="field">
               <span>Rarity</span>
-              <input
+              <select
                 value={item.rarity}
-                onChange={(event) => update({ rarity: event.target.value })}
-              />
+                onChange={(event) =>
+                  update({ rarity: event.target.value as Item["rarity"] })
+                }
+              >
+                {ITEM_RARITIES.map((rarity) => (
+                  <option value={rarity} key={rarity}>
+                    {rarity}
+                  </option>
+                ))}
+              </select>
             </label>
             <OptionalNumberField
               label="Item Level"
@@ -1567,6 +1577,21 @@ export function ItemEditor({
                 value={item.weaponkind ?? ""}
                 onChange={(event) =>
                   update({ weaponkind: event.target.value || undefined })
+                }
+              />
+            </label>
+            <label className="field field-wide">
+              <span>Item Tags</span>
+              <textarea
+                placeholder={"One tag per line, such as Unique or Key Item"}
+                value={lines(item.tags)}
+                onChange={(event) =>
+                  update({
+                    tags: event.target.value
+                      .split("\n")
+                      .map((tag) => tag.trim())
+                      .filter(Boolean),
+                  })
                 }
               />
             </label>

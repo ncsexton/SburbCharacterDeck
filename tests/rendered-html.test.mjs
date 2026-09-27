@@ -118,6 +118,8 @@ test("migrates legacy local saves and character backups to the current schema", 
   legacyCharacter.schemaVersion = 1;
   delete legacyCharacter.identity.classDescription;
   delete legacyCharacter.identity.aspectDescription;
+  legacyCharacter.items[0].rarity = "Exceptional";
+  legacyCharacter.items[1].rarity = "Unique";
 
   const persisted = migratePersistedPrototype({
     schemaVersion: 1,
@@ -137,6 +139,9 @@ test("migrates legacy local saves and character backups to the current schema", 
   assert.equal(persisted.schemaVersion, SCHEMA_VERSION);
   assert.equal(persisted.character.schemaVersion, SCHEMA_VERSION);
   assert.match(persisted.character.identity.classDescription, /Player-authored/);
+  assert.equal(persisted.character.items[0].rarity, "Legendary");
+  assert.equal(persisted.character.items[1].rarity, "Common");
+  assert.deepEqual(persisted.character.items[1].tags, ["Unique"]);
   assert.equal(
     persisted.undoStack[0].previousCharacter.schemaVersion,
     SCHEMA_VERSION,

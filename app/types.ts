@@ -109,6 +109,14 @@ export type ItemType =
   | "Quest Item"
   | "Miscellaneous Item";
 
+export type ItemRarity =
+  | "Common"
+  | "Uncommon"
+  | "Rare"
+  | "Legendary"
+  | "Mythic"
+  | "Exotic";
+
 export interface Item {
   id: string;
   name: string;
@@ -116,7 +124,8 @@ export interface Item {
   slot?: string;
   weaponkind?: string;
   itemLevel?: number;
-  rarity: string;
+  rarity: ItemRarity;
+  tags?: string[];
   quantity: number;
   shortDescription: string;
   fullDescription: string;

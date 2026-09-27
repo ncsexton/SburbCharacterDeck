@@ -1,4 +1,9 @@
 import { SCHEMA_VERSION } from "./seed.ts";
+import {
+  legacyRarityTag,
+  normalizeItemRarity,
+  normalizeItemTags,
+} from "./itemRules.ts";
 import type {
   CharacterData,
   PersistedPrototype,
@@ -32,7 +37,7 @@ function migrateCharacter(input: unknown): CharacterData | null {
   }
 
   const version = Number(input.schemaVersion);
-  if (version !== 1 && version !== SCHEMA_VERSION) return null;
+  if (![1, 2, SCHEMA_VERSION].includes(version)) return null;
 
   const migrated = structuredClone(input) as unknown as CharacterData;
   migrated.schemaVersion = SCHEMA_VERSION;
@@ -71,9 +76,24 @@ function migrateCharacter(input: unknown): CharacterData | null {
     persistsThroughShortRest: status.persistsThroughShortRest ?? false,
     persistsThroughLongRest: status.persistsThroughLongRest ?? false,
   }));
+  migrated.items = migrated.items.map((item) => {
+    const originalRarity = (item as ItemWithLegacyRarity).rarity;
+    const tags = normalizeItemTags(item.tags);
+    const legacyTag = legacyRarityTag(originalRarity);
+    if (legacyTag && !tags.includes(legacyTag)) tags.push(legacyTag);
+    return {
+      ...item,
+      rarity: normalizeItemRarity(originalRarity),
+      tags,
+    };
+  });
 
   return migrated;
 }
+
+type ItemWithLegacyRarity = CharacterData["items"][number] & {
+  rarity: unknown;
+};
 
 export function migratePersistedPrototype(
   input: unknown,

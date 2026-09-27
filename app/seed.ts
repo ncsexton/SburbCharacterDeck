@@ -3,7 +3,7 @@ import type {
   StatDefinition,
 } from "./types";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const statDefinitions: StatDefinition[] = [
   {
@@ -283,7 +283,7 @@ export const seedCharacter: CharacterData = {
       itemType: "Weapon",
       weaponkind: "spearkind",
       itemLevel: 7,
-      rarity: "Exceptional",
+      rarity: "Legendary",
       quantity: 1,
       shortDescription: "A split-tined spear that points toward two probable outcomes.",
       fullDescription:
@@ -423,7 +423,7 @@ export const seedCharacter: CharacterData = {
       itemType: "Trinket",
       slot: "Trinket",
       itemLevel: 5,
-      rarity: "Fabled",
+      rarity: "Exotic",
       quantity: 1,
       shortDescription: "A brass monocle that highlights improbably useful details.",
       fullDescription:
@@ -633,7 +633,8 @@ export const seedCharacter: CharacterData = {
       id: "western-key",
       name: "Key of the Western Index",
       itemType: "Quest Item",
-      rarity: "Unique",
+      rarity: "Common",
+      tags: ["Unique"],
       quantity: 1,
       shortDescription: "Opens a door the map insists does not exist.",
       fullDescription:

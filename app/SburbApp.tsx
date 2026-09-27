@@ -23,6 +23,7 @@ import {
   migratePersistedPrototype,
 } from "./persistence";
 import { SCHEMA_VERSION, seedCharacter, statDefinitions } from "./seed";
+import { ITEM_RARITY_RANK, normalizeItemTags } from "./itemRules";
 import { prepareRest, type RestKind } from "./rests";
 import { applyLevelUp } from "./progression";
 import {
@@ -908,6 +909,8 @@ function ItemCard({
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
+  const collapsedType =
+    item.itemType === "Armor" && item.slot ? item.slot : item.itemType;
   const canApplySimpleOperation =
     item.healthCost !== undefined ||
     item.pluckCost !== undefined ||
@@ -925,13 +928,18 @@ function ItemCard({
         </span>
         <span className="item-main">
           <span className="item-kicker">
-            {item.itemType}
+            {collapsedType}
             {item.itemLevel ? ` · IL ${item.itemLevel}` : ""}
           </span>
           <strong>{item.name}</strong>
           <span className="item-summary">{item.shortDescription}</span>
         </span>
         <span className="item-meta">
+          {item.tags?.map((tag) => (
+            <span className="item-tag" key={tag}>
+              {tag}
+            </span>
+          ))}
           <span className={`rarity rarity-${item.rarity.toLowerCase()}`}>
             {item.rarity}
           </span>
@@ -941,6 +949,11 @@ function ItemCard({
       </summary>
       <div className="item-detail">
         <div className="tag-row">
+          {item.tags?.map((tag) => (
+            <span className="tag" key={tag}>
+              {tag}
+            </span>
+          ))}
           {item.slot ? <span className="tag">{item.slot}</span> : null}
           {item.weaponkind ? <span className="tag">{item.weaponkind}</span> : null}
           {item.apCost !== undefined ? (
@@ -2114,6 +2127,7 @@ export default function SburbApp() {
     if (!itemEditor || !itemEditor.item.name.trim()) return;
     const saved = clone(itemEditor.item);
     saved.quantity = Math.max(0, saved.quantity);
+    saved.tags = normalizeItemTags(saved.tags);
     if (saved.maximumCharges === undefined) {
       saved.remainingCharges = undefined;
     } else {
@@ -2589,7 +2603,9 @@ export default function SburbApp() {
       const matchesFilter = (filterMap[equipmentFilter] ?? (() => true))(item);
       const searchable = `${item.name} ${item.itemType} ${item.rarity} ${
         item.slot ?? ""
-      } ${item.weaponkind ?? ""} ${item.shortDescription}`.toLowerCase();
+      } ${item.weaponkind ?? ""} ${(item.tags ?? []).join(" ")} ${
+        item.shortDescription
+      }`.toLowerCase();
       return matchesFilter && (!query || searchable.includes(query));
     });
     return filtered.sort((a, b) => {
@@ -2597,7 +2613,7 @@ export default function SburbApp() {
       if (equipmentSort === "Item Level")
         return (b.itemLevel ?? 0) - (a.itemLevel ?? 0);
       if (equipmentSort === "Rarity")
-        return a.rarity.localeCompare(b.rarity);
+        return ITEM_RARITY_RANK[b.rarity] - ITEM_RARITY_RANK[a.rarity];
       if (equipmentSort === "Item type")
         return a.itemType.localeCompare(b.itemType) || a.name.localeCompare(b.name);
       return Number(b.equipped) - Number(a.equipped) || a.name.localeCompare(b.name);
