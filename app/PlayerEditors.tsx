@@ -385,7 +385,7 @@ export function CharacterEditor({
 
   const updateResource = (
     key: keyof CharacterData["resources"],
-    value: number,
+    value: number | string | undefined,
   ) => {
     onChange({
       ...draft,
@@ -577,7 +577,7 @@ export function CharacterEditor({
         </EditorSection>
 
         <EditorSection title="Persistent Resource Foundations">
-          <div className="form-grid form-grid-three">
+          <div className="form-grid form-grid-two">
             <label className="field">
               <span>Base Maximum Health</span>
               <input
@@ -593,6 +593,19 @@ export function CharacterEditor({
               />
             </label>
             <label className="field">
+              <span>Health Vial Growth Rate</span>
+              <input
+                placeholder="Optional, such as d8"
+                value={draft.resources.healthGrowthFormula ?? ""}
+                onChange={(event) =>
+                  updateResource(
+                    "healthGrowthFormula",
+                    event.target.value || undefined,
+                  )
+                }
+              />
+            </label>
+            <label className="field">
               <span>Base Maximum Pluck</span>
               <input
                 type="number"
@@ -602,6 +615,19 @@ export function CharacterEditor({
                   updateResource(
                     "baseMaximumPluck",
                     Math.max(0, Number(event.target.value) || 0),
+                  )
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Pluck Growth Rate</span>
+              <input
+                placeholder="Optional, such as d6"
+                value={draft.resources.pluckGrowthFormula ?? ""}
+                onChange={(event) =>
+                  updateResource(
+                    "pluckGrowthFormula",
+                    event.target.value || undefined,
                   )
                 }
               />

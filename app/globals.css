@@ -631,6 +631,22 @@ a {
   font-size: 0.78rem;
 }
 
+.exp-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.button-level-up {
+  min-height: 30px;
+  padding: 5px 11px;
+  border-color: var(--amber);
+  background: var(--temp-soft);
+  color: var(--amber);
+  font-size: 0.68rem;
+}
+
 .exp-track,
 .meter-track {
   position: relative;
@@ -1223,7 +1239,7 @@ details > summary::-webkit-details-marker {
 }
 
 .custom-stat-row .stat-mod {
-  color: var(--amber);
+  color: var(--cyan);
 }
 
 .custom-stat-row .stat-reference-copy {
@@ -2779,6 +2795,54 @@ details > summary::-webkit-details-marker {
   line-height: 1.55;
 }
 
+.level-up-list {
+  display: grid;
+  gap: 8px;
+}
+
+.level-up-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.45fr) repeat(4, minmax(85px, 1fr));
+  gap: 10px;
+  align-items: end;
+  padding: 11px;
+  border: 1px solid var(--line);
+  background: rgba(5, 18, 20, 0.5);
+}
+
+.level-up-row > div,
+.level-up-input {
+  display: grid;
+  gap: 5px;
+}
+
+.level-up-row span {
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  font-size: 0.61rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.level-up-row strong {
+  font-family: ui-monospace, monospace;
+}
+
+.level-up-name strong {
+  color: var(--text);
+  font-family: inherit;
+}
+
+.level-up-input input {
+  min-height: 44px;
+  padding: 8px 10px;
+}
+
+.level-up-result strong {
+  color: var(--cyan);
+}
+
 .modal-actions {
   position: sticky;
   z-index: 2;
@@ -3415,6 +3479,14 @@ details > summary::-webkit-details-marker {
     grid-column: 1 / -1;
   }
 
+  .exp-actions {
+    gap: 6px;
+  }
+
+  .button-level-up {
+    min-height: 34px;
+  }
+
   .character-action-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
@@ -3772,6 +3844,16 @@ details > summary::-webkit-details-marker {
 
   .modal-actions .button {
     flex: 1;
+  }
+
+  .level-up-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .level-up-name {
+    grid-column: 1 / -1;
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--line);
   }
 
   .editor-body {

@@ -6,10 +6,12 @@ import {
   migratePersistedPrototype,
 } from "../app/persistence.ts";
 import {
+  getExpProgressForLevel,
   getExpRequiredForNextLevel,
   previewIncomingDamage,
   TOTAL_EXP_BY_LEVEL,
 } from "../app/rules.ts";
+import { applyLevelUp } from "../app/progression.ts";
 import { prepareRest } from "../app/rests.ts";
 import { SCHEMA_VERSION, seedCharacter } from "../app/seed.ts";
 
@@ -235,6 +237,46 @@ test("uses the total Echeladder EXP thresholds", () => {
   assert.equal(getExpRequiredForNextLevel(7), 27000);
   assert.equal(getExpRequiredForNextLevel(19), 200000);
   assert.equal(getExpRequiredForNextLevel(20), null);
+  assert.equal(getExpProgressForLevel(27000, 8), 0);
+  assert.equal(getExpProgressForLevel(32250, 8), 50);
+  assert.equal(getExpProgressForLevel(37500, 8), 100);
+});
+
+test("applies one level of unrestricted growth without changing current meters or EXP", () => {
+  const character = structuredClone(seedCharacter);
+  character.identity.level = 8;
+  character.identity.currentExp = 37500;
+  character.resources.currentHealth = 19;
+  character.resources.currentPluck = 10;
+  const mangritBefore = character.stats.find(
+    (stat) => stat.definitionId === "mangrit",
+  ).baseValue;
+  const customBefore = character.customStats[0].value;
+
+  const leveled = applyLevelUp(character, {
+    health: 5,
+    pluck: 2,
+    standardStats: { mangrit: 3 },
+    customStats: { [character.customStats[0].id]: -1 },
+  });
+
+  assert.equal(leveled.identity.level, 9);
+  assert.equal(leveled.identity.currentExp, 37500);
+  assert.equal(leveled.resources.currentHealth, 19);
+  assert.equal(leveled.resources.currentPluck, 10);
+  assert.equal(
+    leveled.resources.baseMaximumHealth,
+    character.resources.baseMaximumHealth + 5,
+  );
+  assert.equal(
+    leveled.resources.baseMaximumPluck,
+    character.resources.baseMaximumPluck + 2,
+  );
+  assert.equal(
+    leveled.stats.find((stat) => stat.definitionId === "mangrit").baseValue,
+    mangritBefore + 3,
+  );
+  assert.equal(leveled.customStats[0].value, customBefore - 1);
 });
 
 test("previews and applies Short and Long Rest rules", () => {

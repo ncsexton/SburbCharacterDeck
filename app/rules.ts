@@ -34,6 +34,24 @@ export function getExpRequiredForNextLevel(level: number): number | null {
   return TOTAL_EXP_BY_LEVEL[normalizedLevel + 1] ?? null;
 }
 
+export function getExpProgressForLevel(
+  currentExp: number,
+  level: number,
+): number {
+  const normalizedLevel = Math.max(1, Math.min(20, Math.trunc(level)));
+  const levelStart = TOTAL_EXP_BY_LEVEL[normalizedLevel] ?? 0;
+  const nextLevel = TOTAL_EXP_BY_LEVEL[normalizedLevel + 1];
+
+  if (nextLevel === undefined) return 100;
+
+  const expWithinLevel = currentExp - levelStart;
+  const expNeededThisLevel = nextLevel - levelStart;
+  return Math.max(
+    0,
+    Math.min(100, (expWithinLevel / expNeededThisLevel) * 100),
+  );
+}
+
 export interface DamagePreviewInput {
   incomingDamage: number;
   damageType: BasicDamageType;

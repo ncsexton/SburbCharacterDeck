@@ -24,7 +24,12 @@ import {
 } from "./persistence";
 import { SCHEMA_VERSION, seedCharacter, statDefinitions } from "./seed";
 import { prepareRest, type RestKind } from "./rests";
-import { getExpRequiredForNextLevel, previewIncomingDamage } from "./rules";
+import { applyLevelUp } from "./progression";
+import {
+  getExpProgressForLevel,
+  getExpRequiredForNextLevel,
+  previewIncomingDamage,
+} from "./rules";
 import type {
   ActiveStatusNote,
   CharacterData,
@@ -187,6 +192,7 @@ function formatModifier(value: number) {
 function getCustomStatModifier(stat: CharacterData["customStats"][number]) {
   if (stat.modifierType === "standard") return Math.floor(stat.value / 5);
   if (stat.modifierType === "informational") return null;
+  if (stat.modifierType === "full-value") return stat.value;
   return stat.bonus;
 }
 
@@ -1311,6 +1317,8 @@ export default function SburbApp() {
   const [restKind, setRestKind] = useState<RestKind | null>(null);
   const [expAdjustmentOpen, setExpAdjustmentOpen] = useState(false);
   const [expAdjustmentAmount, setExpAdjustmentAmount] = useState(0);
+  const [levelUpOpen, setLevelUpOpen] = useState(false);
+  const [growthRolls, setGrowthRolls] = useState<Record<string, string>>({});
   const [damageAmount, setDamageAmount] = useState(15);
   const [damageType, setDamageType] = useState<
     "Physical" | "Special" | "True" | "Unmitigated"
@@ -1516,6 +1524,40 @@ export default function SburbApp() {
     );
     setExpAdjustmentOpen(false);
     setExpAdjustmentAmount(0);
+  };
+
+  const completeLevelUp = () => {
+    const numberFor = (key: string) => Number(growthRolls[key]) || 0;
+    const next = applyLevelUp(character, {
+      health: numberFor("health"),
+      pluck: numberFor("pluck"),
+      standardStats: Object.fromEntries(
+        character.stats.map((stat) => [
+          stat.definitionId,
+          numberFor(`stat:${stat.definitionId}`),
+        ]),
+      ),
+      customStats: Object.fromEntries(
+        character.customStats.map((stat) => [
+          stat.id,
+          numberFor(`custom:${stat.id}`),
+        ]),
+      ),
+    });
+
+    commit(
+      `Advanced to Echeladder Level ${next.identity.level}`,
+      {
+        resourceType: "Progression",
+        operationType: "level-up",
+        previousValue: character.identity.level,
+        newValue: next.identity.level,
+        changeAmount: next.identity.level - character.identity.level,
+      },
+      (draft) => Object.assign(draft, next),
+    );
+    setLevelUpOpen(false);
+    setGrowthRolls({});
   };
 
   const openAdjustment = (
@@ -2644,17 +2686,14 @@ export default function SburbApp() {
 
   const renderCharacter = () => {
     const nextLevelExp = getExpRequiredForNextLevel(character.identity.level);
+    const canLevelUp =
+      nextLevelExp !== null && character.identity.currentExp >= nextLevelExp;
     const remainingShortRests =
       character.resources.maximumShortRests -
       character.resources.shortRestsUsed;
-    const expPercent = Math.max(
-      0,
-      Math.min(
-        100,
-        nextLevelExp === null
-          ? 100
-          : (character.identity.currentExp / nextLevelExp) * 100,
-      ),
+    const expPercent = getExpProgressForLevel(
+      character.identity.currentExp,
+      character.identity.level,
     );
     return (
       <div className="page-stack">
@@ -2711,10 +2750,24 @@ export default function SburbApp() {
           <div className="exp-block">
             <div>
               <span>EXP</span>
-              <strong>
-                {formatNumber(character.identity.currentExp)} /{" "}
-                {nextLevelExp === null ? "MAX" : formatNumber(nextLevelExp)}
-              </strong>
+              <div className="exp-actions">
+                <strong>
+                  {formatNumber(character.identity.currentExp)} /{" "}
+                  {nextLevelExp === null ? "MAX" : formatNumber(nextLevelExp)}
+                </strong>
+                {canLevelUp ? (
+                  <button
+                    className="button button-level-up"
+                    type="button"
+                    onClick={() => {
+                      setGrowthRolls({});
+                      setLevelUpOpen(true);
+                    }}
+                  >
+                    Level Up
+                  </button>
+                ) : null}
+              </div>
             </div>
             <div
               className="exp-track"
@@ -3637,6 +3690,37 @@ export default function SburbApp() {
     },
   };
 
+  const levelUpRows = [
+    {
+      id: "health",
+      name: "Health Vial",
+      growthRate: character.resources.healthGrowthFormula,
+      baseValue: character.resources.baseMaximumHealth,
+    },
+    {
+      id: "pluck",
+      name: "Pluck",
+      growthRate: character.resources.pluckGrowthFormula,
+      baseValue: character.resources.baseMaximumPluck,
+    },
+    ...character.stats.map((stat) => ({
+      id: `stat:${stat.definitionId}`,
+      name:
+        statDefinitions.find((definition) => definition.id === stat.definitionId)
+          ?.name ?? stat.definitionId,
+      growthRate: stat.growthFormula,
+      baseValue: stat.baseValue,
+    })),
+    ...character.customStats
+      .filter((stat) => stat.growthInfo?.trim())
+      .map((stat) => ({
+        id: `custom:${stat.id}`,
+        name: stat.name,
+        growthRate: stat.growthInfo,
+        baseValue: stat.value,
+      })),
+  ];
+
   return (
     <div className="app-shell">
       <aside className="desktop-sidebar">
@@ -3839,6 +3923,74 @@ export default function SburbApp() {
               disabled={expAdjustmentAmount === 0}
             >
               Confirm
+            </button>
+          </footer>
+        </ModalFrame>
+      ) : null}
+
+      {levelUpOpen ? (
+        <ModalFrame
+          eyebrow="Echeladder Advancement"
+          title={`Level Up to ${Math.min(20, character.identity.level + 1)}?`}
+          onClose={() => setLevelUpOpen(false)}
+        >
+          <div className="modal-body">
+            <p className="field-help">
+              Enter each rolled growth value. Blank boxes count as 0. Growth
+              Rates are reminders and do not restrict what you enter.
+            </p>
+            <div className="level-up-list">
+              {levelUpRows.map((row) => {
+                const growth = Number(growthRolls[row.id]) || 0;
+                return (
+                  <article className="level-up-row" key={row.id}>
+                    <div className="level-up-name">
+                      <strong>{row.name}</strong>
+                    </div>
+                    <div>
+                      <span>Growth Rate</span>
+                      <strong>{row.growthRate || "—"}</strong>
+                    </div>
+                    <div>
+                      <span>Base Stat</span>
+                      <strong>{row.baseValue}</strong>
+                    </div>
+                    <label className="level-up-input">
+                      <span>Rolled Growth</span>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={growthRolls[row.id] ?? ""}
+                        onChange={(event) =>
+                          setGrowthRolls((current) => ({
+                            ...current,
+                            [row.id]: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <div className="level-up-result">
+                      <span>New Base Stat</span>
+                      <strong>{row.baseValue + growth}</strong>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+            <p className="automation-note">
+              Total EXP, Current Health, and Current Pluck will remain unchanged.
+              This confirmation advances exactly one Echeladder Level.
+            </p>
+          </div>
+          <footer className="modal-actions">
+            <button
+              className="button button-quiet"
+              onClick={() => setLevelUpOpen(false)}
+            >
+              Cancel
+            </button>
+            <button className="button button-primary" onClick={completeLevelUp}>
+              Confirm Level Up
             </button>
           </footer>
         </ModalFrame>

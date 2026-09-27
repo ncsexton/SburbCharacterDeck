@@ -202,9 +202,11 @@ export interface ActiveStatusNote {
 export interface CharacterResources {
   currentHealth: number;
   baseMaximumHealth: number;
+  healthGrowthFormula?: string;
   temporaryHealth: number;
   currentPluck: number;
   baseMaximumPluck: number;
+  pluckGrowthFormula?: string;
   currentAP: number;
   doomMarks: number;
   surge: number;
