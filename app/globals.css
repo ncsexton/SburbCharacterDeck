@@ -764,9 +764,43 @@ a {
 
 .meter-adjuster {
   display: grid;
-  grid-template-columns: 64px 1fr 1fr;
+  grid-template-columns: 92px repeat(3, minmax(0, 1fr));
   gap: 6px;
   margin-top: 12px;
+}
+
+.meter-direction-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  border: 1px solid var(--line-strong);
+  background: #081416;
+}
+
+.meter-direction-toggle button {
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.15rem;
+  font-weight: 850;
+}
+
+.meter-direction-toggle button + button {
+  border-left: 1px solid var(--line-strong);
+}
+
+.meter-direction-toggle button.active {
+  background: var(--cyan-soft);
+  color: var(--cyan);
+}
+
+.meter-amount-button {
+  min-width: 0;
+  padding-inline: 6px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.9rem;
 }
 
 .meter-adjuster input,
@@ -1186,6 +1220,14 @@ details > summary::-webkit-details-marker {
 
 .custom-stats {
   margin: 0 22px 22px;
+}
+
+.custom-stat-row .stat-mod {
+  color: var(--amber);
+}
+
+.custom-stat-row .stat-reference-copy {
+  margin-bottom: 0;
 }
 
 .custom-stat-grid {
@@ -2306,6 +2348,11 @@ details > summary::-webkit-details-marker {
   font-size: 0.61rem;
 }
 
+.status-chip .status-rest-note {
+  color: var(--temp);
+  white-space: normal;
+}
+
 .status-chip button {
   display: grid;
   width: 34px;
@@ -3018,6 +3065,39 @@ details > summary::-webkit-details-marker {
   color: var(--health);
 }
 
+.rest-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.rest-preview-grid section {
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+
+.rest-preview-grid h3 {
+  margin-bottom: 6px;
+  color: var(--muted-strong);
+  font-size: 0.72rem;
+}
+
+.rest-preview-grid p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.rest-preview-wide {
+  grid-column: 1 / -1;
+}
+
+.status-rest-options {
+  margin-top: 4px;
+}
+
 .warning-callout {
   padding: 10px 12px;
   border: 1px solid rgba(255, 104, 124, 0.4);
@@ -3391,12 +3471,20 @@ details > summary::-webkit-details-marker {
   }
 
   .meter-adjuster {
-    grid-template-columns: 60px 1fr 1fr;
+    grid-template-columns: 88px repeat(3, minmax(0, 1fr));
   }
 
   .meter-adjuster .button {
     padding-inline: 7px;
     font-size: 0.68rem;
+  }
+
+  .rest-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rest-preview-wide {
+    grid-column: auto;
   }
 
   .quick-action-grid {

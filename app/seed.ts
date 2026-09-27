@@ -292,6 +292,7 @@ export const seedCharacter: CharacterData = {
       consumable: false,
       remainingCharges: 2,
       maximumCharges: 2,
+      recoveryType: "Long Rest",
       statBonuses: [
         { statDefinitionId: "flummoxie", amount: 2 },
         { statDefinitionId: "scamperway", amount: 1 },
@@ -433,6 +434,7 @@ export const seedCharacter: CharacterData = {
       maximumPluckBonus: 2,
       remainingCharges: 1,
       maximumCharges: 1,
+      recoveryType: "Short Rest",
       majorAffixes: [
         {
           id: "find-the-thread",
@@ -591,6 +593,7 @@ export const seedCharacter: CharacterData = {
       pluckCost: 2,
       remainingCharges: 3,
       maximumCharges: 3,
+      recoveryType: "Long Rest",
       statBonuses: [],
       majorAffixes: [
         {

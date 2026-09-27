@@ -1035,15 +1035,19 @@ function AffixEditorList({
                   onChange={(value) => update(index, { currentCharges: value })}
                 />
                 <label className="field">
-                  <span>Recovery type</span>
-                  <input
+                  <span>Recovery Type</span>
+                  <select
                     value={affix.recoveryType ?? ""}
                     onChange={(event) =>
                       update(index, {
                         recoveryType: event.target.value || undefined,
                       })
                     }
-                  />
+                  >
+                    <option value="">No Automatic Recovery</option>
+                    <option value="Short Rest">Short Rest</option>
+                    <option value="Long Rest">Long Rest</option>
+                  </select>
                 </label>
                 <label className="field field-wide">
                   <span>Short summary</span>
@@ -1294,6 +1298,21 @@ function WeaponMoveEditorList({
                   min={0}
                   onChange={(value) => update(index, { currentCharges: value })}
                 />
+                <label className="field">
+                  <span>Recovery Type</span>
+                  <select
+                    value={move.recoveryType ?? ""}
+                    onChange={(event) =>
+                      update(index, {
+                        recoveryType: event.target.value || undefined,
+                      })
+                    }
+                  >
+                    <option value="">No Automatic Recovery</option>
+                    <option value="Short Rest">Short Rest</option>
+                    <option value="Long Rest">Long Rest</option>
+                  </select>
+                </label>
                 <label className="field field-wide">
                   <span>Roll information</span>
                   <textarea
@@ -1644,6 +1663,19 @@ export function ItemEditor({
               min={0}
               onChange={(value) => update({ remainingCharges: value })}
             />
+            <label className="field">
+              <span>Recovery Type</span>
+              <select
+                value={item.recoveryType ?? ""}
+                onChange={(event) =>
+                  update({ recoveryType: event.target.value || undefined })
+                }
+              >
+                <option value="">No Automatic Recovery</option>
+                <option value="Short Rest">Short Rest</option>
+                <option value="Long Rest">Long Rest</option>
+              </select>
+            </label>
           </div>
         </EditorSection>
 
@@ -1950,13 +1982,17 @@ export function ClasspectEditor({
               onChange={(value) => update({ currentCharges: value })}
             />
             <label className="field">
-              <span>Recovery type</span>
-              <input
+              <span>Recovery Type</span>
+              <select
                 value={entry.recoveryType ?? ""}
                 onChange={(event) =>
                   update({ recoveryType: event.target.value || undefined })
                 }
-              />
+              >
+                <option value="">No Automatic Recovery</option>
+                <option value="Short Rest">Short Rest</option>
+                <option value="Long Rest">Long Rest</option>
+              </select>
             </label>
           </div>
         </EditorSection>

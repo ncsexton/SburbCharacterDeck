@@ -23,6 +23,7 @@ import {
   migratePersistedPrototype,
 } from "./persistence";
 import { SCHEMA_VERSION, seedCharacter, statDefinitions } from "./seed";
+import { prepareRest, type RestKind } from "./rests";
 import { getExpRequiredForNextLevel, previewIncomingDamage } from "./rules";
 import type {
   ActiveStatusNote,
@@ -154,6 +155,8 @@ interface StatusDraft {
   saveDC: string;
   source: string;
   notes: string;
+  persistsThroughShortRest: boolean;
+  persistsThroughLongRest: boolean;
 }
 
 const emptyStatusDraft: StatusDraft = {
@@ -165,6 +168,8 @@ const emptyStatusDraft: StatusDraft = {
   saveDC: "",
   source: "",
   notes: "",
+  persistsThroughShortRest: false,
+  persistsThroughLongRest: false,
 };
 
 function clone<T>(value: T): T {
@@ -177,6 +182,12 @@ function makeId(prefix: string) {
 
 function formatModifier(value: number) {
   return value >= 0 ? `+${value}` : String(value);
+}
+
+function getCustomStatModifier(stat: CharacterData["customStats"][number]) {
+  if (stat.modifierType === "standard") return Math.floor(stat.value / 5);
+  if (stat.modifierType === "informational") return null;
+  return stat.bonus;
 }
 
 function formatNumber(value: number) {
@@ -349,7 +360,6 @@ function MeterCard({
   current,
   maximum,
   tone,
-  amountLabel,
   onSubtract,
   onAdd,
   onSet,
@@ -358,12 +368,11 @@ function MeterCard({
   current: number;
   maximum?: number;
   tone: "health" | "temp" | "pluck";
-  amountLabel: string;
   onSubtract: (amount: number) => void;
   onAdd: (amount: number) => void;
   onSet: () => void;
 }) {
-  const [amount, setAmount] = useState(1);
+  const [direction, setDirection] = useState<"subtract" | "add">("subtract");
   const percentage =
     maximum && maximum > 0
       ? Math.max(0, Math.min(100, (current / maximum) * 100))
@@ -384,7 +393,7 @@ function MeterCard({
           </p>
         </div>
         <button className="text-button" onClick={onSet}>
-          Set exact
+          Set Exact
         </button>
       </div>
       <div
@@ -397,32 +406,43 @@ function MeterCard({
       >
         <span style={{ width: `${percentage}%` }} />
       </div>
-      <div className="meter-adjuster">
-        <label>
-          <span className="sr-only">{amountLabel}</span>
-          <input
-            type="number"
-            min={0}
-            value={amount}
-            onChange={(event) =>
-              setAmount(Math.max(0, Number(event.target.value) || 0))
+      <div className="meter-adjuster meter-quick-adjuster">
+        <div
+          className="meter-direction-toggle"
+          aria-label={`${label} Adjustment Direction`}
+        >
+          <button
+            className={direction === "subtract" ? "active" : ""}
+            type="button"
+            onClick={() => setDirection("subtract")}
+            aria-pressed={direction === "subtract"}
+          >
+            −
+          </button>
+          <button
+            className={direction === "add" ? "active" : ""}
+            type="button"
+            onClick={() => setDirection("add")}
+            aria-pressed={direction === "add"}
+          >
+            +
+          </button>
+        </div>
+        {[1, 5, 10].map((amount) => (
+          <button
+            className="button button-muted meter-amount-button"
+            type="button"
+            key={amount}
+            onClick={() =>
+              direction === "subtract" ? onSubtract(amount) : onAdd(amount)
             }
-          />
-        </label>
-        <button
-          className="button button-muted"
-          onClick={() => onSubtract(amount)}
-          aria-label={`Subtract ${amount} from ${label}`}
-        >
-          − Apply
-        </button>
-        <button
-          className="button button-muted"
-          onClick={() => onAdd(amount)}
-          aria-label={`Add ${amount} to ${label}`}
-        >
-          + Apply
-        </button>
+            aria-label={`${direction === "subtract" ? "Subtract" : "Add"} ${amount} ${
+              direction === "subtract" ? "from" : "to"
+            } ${label}`}
+          >
+            {amount}
+          </button>
+        ))}
       </div>
     </article>
   );
@@ -1288,6 +1308,9 @@ export default function SburbApp() {
   const [adjustment, setAdjustment] = useState<AdjustmentRequest | null>(null);
   const [costRequest, setCostRequest] = useState<CostRequest | null>(null);
   const [damageOpen, setDamageOpen] = useState(false);
+  const [restKind, setRestKind] = useState<RestKind | null>(null);
+  const [expAdjustmentOpen, setExpAdjustmentOpen] = useState(false);
+  const [expAdjustmentAmount, setExpAdjustmentAmount] = useState(0);
   const [damageAmount, setDamageAmount] = useState(15);
   const [damageType, setDamageType] = useState<
     "Physical" | "Special" | "True" | "Unmitigated"
@@ -1370,6 +1393,9 @@ export default function SburbApp() {
   const moxieMuffling = getStat(character, "moxie-muffling");
   const triggerance = getStat(character, "triggerance");
   const verballistamina = getStat(character, "verballistamina");
+  const restResult = restKind
+    ? prepareRest(character, restKind, maximumHealth, maximumPluck)
+    : null;
 
   const commit = (
     label: string,
@@ -1422,6 +1448,74 @@ export default function SburbApp() {
       ),
     );
     setToast(`Undid: ${record.label}.`);
+  };
+
+  const completeRest = () => {
+    if (!restKind) return;
+    const result = prepareRest(
+      character,
+      restKind,
+      maximumHealth,
+      maximumPluck,
+    );
+    commit(
+      `Completed ${restKind}`,
+      {
+        resourceType: restKind,
+        operationType: restKind === "Short Rest" ? "short-rest" : "long-rest",
+        sourceName: restKind,
+        previousValue: character.resources.currentHealth,
+        newValue: result.character.resources.currentHealth,
+        changeAmount:
+          result.character.resources.currentHealth -
+          character.resources.currentHealth,
+        temporaryHealthBefore: character.resources.temporaryHealth,
+        temporaryHealthAfter: 0,
+      },
+      (draft) => Object.assign(draft, result.character),
+    );
+    setRestKind(null);
+  };
+
+  const subtractDirectlyFromHealth = (amount: number) => {
+    const nextHealth = character.resources.currentHealth - Math.max(0, amount);
+    commit(
+      "Health Vial Decreased",
+      {
+        resourceType: "Health",
+        operationType: "direct-health-adjustment",
+        previousValue: character.resources.currentHealth,
+        changeAmount: nextHealth - character.resources.currentHealth,
+        newValue: nextHealth,
+        temporaryHealthBefore: character.resources.temporaryHealth,
+        temporaryHealthAfter: character.resources.temporaryHealth,
+      },
+      (draft) => {
+        draft.resources.currentHealth = nextHealth;
+      },
+    );
+  };
+
+  const applyExpAdjustment = () => {
+    const nextExp = Math.max(
+      0,
+      character.identity.currentExp + Math.trunc(expAdjustmentAmount),
+    );
+    commit(
+      "Adjusted Total EXP",
+      {
+        resourceType: "EXP",
+        operationType: "exp-adjustment",
+        previousValue: character.identity.currentExp,
+        changeAmount: nextExp - character.identity.currentExp,
+        newValue: nextExp,
+      },
+      (draft) => {
+        draft.identity.currentExp = nextExp;
+      },
+    );
+    setExpAdjustmentOpen(false);
+    setExpAdjustmentAmount(0);
   };
 
   const openAdjustment = (
@@ -2311,6 +2405,8 @@ export default function SburbApp() {
       saveDC: draft.saveDC ? Number(draft.saveDC) : undefined,
       source: draft.source.trim() || undefined,
       notes: draft.notes.trim() || undefined,
+      persistsThroughShortRest: draft.persistsThroughShortRest,
+      persistsThroughLongRest: draft.persistsThroughLongRest,
     };
     commit(
       `Added Status note — ${status.statusName}`,
@@ -2499,14 +2595,7 @@ export default function SburbApp() {
           current={character.resources.currentHealth}
           maximum={maximumHealth}
           tone="health"
-          amountLabel="Health adjustment amount"
-          onSubtract={(amount) =>
-            applyAdjustment(
-              { kind: "health-loss", amount },
-              false,
-              false,
-            )
-          }
+          onSubtract={subtractDirectlyFromHealth}
           onAdd={(amount) =>
             applyAdjustment({ kind: "heal", amount }, false, false)
           }
@@ -2521,7 +2610,6 @@ export default function SburbApp() {
           label="Temporary Health"
           current={character.resources.temporaryHealth}
           tone="temp"
-          amountLabel="Temporary Health adjustment amount"
           onSubtract={(amount) =>
             applyAdjustment({ kind: "temp-remove", amount }, false, false)
           }
@@ -2540,9 +2628,8 @@ export default function SburbApp() {
           current={character.resources.currentPluck}
           maximum={maximumPluck}
           tone="pluck"
-          amountLabel="Pluck adjustment amount"
           onSubtract={(amount) =>
-            applyAdjustment({ kind: "pluck-loss", amount }, false, false)
+            applyAdjustment({ kind: "pluck-loss", amount }, true, false)
           }
           onAdd={(amount) =>
             applyAdjustment({ kind: "pluck-restore", amount }, false, false)
@@ -2648,17 +2735,32 @@ export default function SburbApp() {
               value={character.resources.doomMarks}
               onChange={(value) => updateResource("doomMarks", value)}
             />
-            <button className="button character-action-button" type="button">
+            <button
+              className="button character-action-button"
+              type="button"
+              onClick={() => {
+                setExpAdjustmentAmount(0);
+                setExpAdjustmentOpen(true);
+              }}
+            >
               <span>Adjust EXP</span>
             </button>
-            <button className="button character-action-button" type="button">
+            <button
+              className="button character-action-button"
+              type="button"
+              onClick={() => setRestKind("Short Rest")}
+            >
               <span>Short Rest</span>
               <small>
                 {remainingShortRests} / {character.resources.maximumShortRests}{" "}
                 Remaining
               </small>
             </button>
-            <button className="button character-action-button" type="button">
+            <button
+              className="button character-action-button"
+              type="button"
+              onClick={() => setRestKind("Long Rest")}
+            >
               <span>Long Rest</span>
             </button>
           </div>
@@ -2695,34 +2797,48 @@ export default function SburbApp() {
           <section className="stat-category custom-stats">
             <div className="stat-category-header">
               <span>CUSTOM</span>
-              <span className="summary-hint">GM-defined behavior</span>
+              <span className="stat-column-headings" aria-hidden="true">
+                <span>Base</span>
+                <span>Total</span>
+                <span>Mod</span>
+              </span>
             </div>
-            <div className="custom-stat-grid">
+            <div className="stat-list custom-stat-list">
               {character.customStats
                 .slice()
                 .sort((a, b) => a.displayOrder - b.displayOrder)
-                .map((stat) => (
-                  <article className="custom-stat-card" key={stat.id}>
-                    <div>
-                      <p className="eyebrow">
-                        {stat.modifierType.replace("-", " ")}
-                      </p>
-                      <h3>{stat.name}</h3>
-                    </div>
-                    <strong className="custom-stat-value">
-                      {formatModifier(stat.bonus)}
-                    </strong>
-                    <p>{stat.description}</p>
-                    {stat.linkedStandardStat ? (
-                      <span className="tag">
-                        Linked: {stat.linkedStandardStat}
-                      </span>
-                    ) : null}
-                    {stat.notes ? (
-                      <p className="muted-copy">{stat.notes}</p>
-                    ) : null}
-                  </article>
-                ))}
+                .map((stat) => {
+                  const modifier = getCustomStatModifier(stat);
+                  return (
+                    <details className="stat-row custom-stat-row" key={stat.id}>
+                      <summary>
+                        <span className="stat-name">{stat.name}</span>
+                        <span className="stat-base">{stat.value}</span>
+                        <span className="stat-total">{stat.value}</span>
+                        <span className="stat-mod">
+                          {modifier === null ? "—" : formatModifier(modifier)}
+                        </span>
+                      </summary>
+                      <div className="stat-detail">
+                        <div className="stat-reference-copy">
+                          <p>{stat.description}</p>
+                          <p className="muted-copy">
+                            Modifier Behavior: {stat.modifierType.replace("-", " ")}
+                          </p>
+                          {stat.linkedStandardStat ? (
+                            <p>Linked Standard Stat: {stat.linkedStandardStat}</p>
+                          ) : null}
+                          {stat.growthInfo ? (
+                            <p className="stat-growth">Growth: {stat.growthInfo}</p>
+                          ) : null}
+                          {stat.notes ? (
+                            <p className="muted-copy">{stat.notes}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </details>
+                  );
+                })}
             </div>
           </section>
         </section>
@@ -3066,6 +3182,18 @@ export default function SburbApp() {
                     }`
                   : ""}
               </span>
+              {status.persistsThroughShortRest ||
+              status.persistsThroughLongRest ? (
+                <span className="status-rest-note">
+                  Persists Through{" "}
+                  {[
+                    status.persistsThroughShortRest ? "Short Rest" : null,
+                    status.persistsThroughLongRest ? "Long Rest" : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" and ")}
+                </span>
+              ) : null}
             </div>
             <button
               onClick={() => removeStatus(status)}
@@ -3660,6 +3788,155 @@ export default function SburbApp() {
         />
       ) : null}
 
+      {expAdjustmentOpen ? (
+        <ModalFrame
+          eyebrow="Progression Adjustment"
+          title="Adjust EXP"
+          onClose={() => setExpAdjustmentOpen(false)}
+        >
+          <div className="modal-body">
+            <label className="field">
+              <span>EXP Change</span>
+              <input
+                type="number"
+                value={expAdjustmentAmount}
+                onChange={(event) =>
+                  setExpAdjustmentAmount(Number(event.target.value) || 0)
+                }
+              />
+            </label>
+            <p className="field-help">
+              Enter a positive number to increase EXP or a negative number to
+              decrease it.
+            </p>
+            <div className="calculation-preview">
+              <div className="preview-result">
+                <span>Total EXP</span>
+                <strong>
+                  {formatNumber(character.identity.currentExp)} →{" "}
+                  {formatNumber(
+                    Math.max(
+                      0,
+                      character.identity.currentExp +
+                        Math.trunc(expAdjustmentAmount),
+                    ),
+                  )}
+                </strong>
+                <small>Echeladder Level remains unchanged.</small>
+              </div>
+            </div>
+          </div>
+          <footer className="modal-actions">
+            <button
+              className="button button-quiet"
+              onClick={() => setExpAdjustmentOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              className="button button-primary"
+              onClick={applyExpAdjustment}
+              disabled={expAdjustmentAmount === 0}
+            >
+              Confirm
+            </button>
+          </footer>
+        </ModalFrame>
+      ) : null}
+
+      {restKind && restResult ? (
+        <ModalFrame
+          eyebrow="Rest Confirmation"
+          title={`Take a ${restKind}?`}
+          onClose={() => setRestKind(null)}
+        >
+          <div className="modal-body">
+            {restResult.preview.overrideRequired ? (
+              <p className="warning-callout">
+                No Short Rests remain. Confirming will override the normal
+                limit without changing the maximum.
+              </p>
+            ) : null}
+            <div className="calculation-preview">
+              <div>
+                <span>Health Vial</span>
+                <strong>
+                  {restResult.preview.healthBefore} → {restResult.preview.healthAfter}
+                </strong>
+              </div>
+              <div>
+                <span>Pluck</span>
+                <strong>
+                  {restResult.preview.pluckBefore} → {restResult.preview.pluckAfter}
+                </strong>
+              </div>
+              <div>
+                <span>Temporary Health</span>
+                <strong>
+                  {restResult.preview.temporaryHealthBefore} → 0
+                </strong>
+              </div>
+              <div>
+                <span>Doom Marks</span>
+                <strong>
+                  {restResult.preview.doomMarksBefore} → {restResult.preview.doomMarksAfter}
+                </strong>
+              </div>
+              <div>
+                <span>Short Rests Remaining</span>
+                <strong>
+                  {restResult.preview.shortRestsBefore} → {restResult.preview.shortRestsAfter}
+                </strong>
+              </div>
+            </div>
+            <div className="rest-preview-grid">
+              <section>
+                <h3>Status Ailments Removed</h3>
+                <p>
+                  {restResult.preview.removedStatuses.length
+                    ? restResult.preview.removedStatuses.join(", ")
+                    : "None"}
+                </p>
+              </section>
+              <section>
+                <h3>Status Ailments Retained</h3>
+                <p>
+                  {restResult.preview.retainedStatuses.length
+                    ? restResult.preview.retainedStatuses.join(", ")
+                    : "None"}
+                </p>
+              </section>
+              <section className="rest-preview-wide">
+                <h3>Charges and Uses Refreshed</h3>
+                <p>
+                  {restResult.preview.refreshedEntries.length
+                    ? restResult.preview.refreshedEntries.join(", ")
+                    : "None"}
+                </p>
+              </section>
+            </div>
+            <p className="automation-note">
+              Remember to resolve any additional recovery granted by character
+              rules, equipment, facilities, or active effects.
+            </p>
+            <p className="automation-note">
+              AP, Surge, and Stagger are Strife-only and are not changed here.
+            </p>
+          </div>
+          <footer className="modal-actions">
+            <button
+              className="button button-quiet"
+              onClick={() => setRestKind(null)}
+            >
+              Cancel
+            </button>
+            <button className="button button-primary" onClick={completeRest}>
+              Confirm
+            </button>
+          </footer>
+        </ModalFrame>
+      ) : null}
+
       {adjustment ? (
         <AdjustmentModal
           request={adjustment}
@@ -4196,6 +4473,40 @@ export default function SburbApp() {
                 }
               />
             </label>
+            <div className="form-grid status-rest-options">
+              <label className="toggle-row">
+                <input
+                  type="checkbox"
+                  checked={statusDraft.persistsThroughShortRest}
+                  onChange={(event) =>
+                    setStatusDraft({
+                      ...statusDraft,
+                      persistsThroughShortRest: event.target.checked,
+                    })
+                  }
+                />
+                <span>
+                  <strong>Persists Through Short Rest</strong>
+                  <small>This Status will be retained after a Short Rest.</small>
+                </span>
+              </label>
+              <label className="toggle-row">
+                <input
+                  type="checkbox"
+                  checked={statusDraft.persistsThroughLongRest}
+                  onChange={(event) =>
+                    setStatusDraft({
+                      ...statusDraft,
+                      persistsThroughLongRest: event.target.checked,
+                    })
+                  }
+                />
+                <span>
+                  <strong>Persists Through Long Rest</strong>
+                  <small>This Status will be retained after a Long Rest.</small>
+                </span>
+              </label>
+            </div>
             <p className="automation-note">
               Durations, saves, damage, restrictions, and Stat changes remain
               manual.

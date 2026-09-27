@@ -66,6 +66,11 @@ function migrateCharacter(input: unknown): CharacterData | null {
       Math.trunc(migrated.resources.shortRestsUsed ?? 0),
     ),
   );
+  migrated.statuses = migrated.statuses.map((status) => ({
+    ...status,
+    persistsThroughShortRest: status.persistsThroughShortRest ?? false,
+    persistsThroughLongRest: status.persistsThroughLongRest ?? false,
+  }));
 
   return migrated;
 }

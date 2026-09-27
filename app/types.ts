@@ -92,6 +92,7 @@ export interface WeaponMove {
   usageLimit?: string;
   maximumCharges?: number;
   currentCharges?: number;
+  recoveryType?: string;
   effectText: string;
   displayOrder: number;
   used?: boolean;
@@ -129,6 +130,7 @@ export interface Item {
   temporaryHealthAmount?: number;
   remainingCharges?: number;
   maximumCharges?: number;
+  recoveryType?: string;
   notes?: string;
   statBonuses: StatBonus[];
   maximumHealthBonus?: number;
@@ -193,6 +195,8 @@ export interface ActiveStatusNote {
   saveDC?: number;
   source?: string;
   notes?: string;
+  persistsThroughShortRest?: boolean;
+  persistsThroughLongRest?: boolean;
 }
 
 export interface CharacterResources {

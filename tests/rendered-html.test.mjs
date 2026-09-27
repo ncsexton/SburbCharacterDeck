@@ -10,6 +10,7 @@ import {
   previewIncomingDamage,
   TOTAL_EXP_BY_LEVEL,
 } from "../app/rules.ts";
+import { prepareRest } from "../app/rests.ts";
 import { SCHEMA_VERSION, seedCharacter } from "../app/seed.ts";
 
 async function render(path = "/") {
@@ -234,6 +235,52 @@ test("uses the total Echeladder EXP thresholds", () => {
   assert.equal(getExpRequiredForNextLevel(7), 27000);
   assert.equal(getExpRequiredForNextLevel(19), 200000);
   assert.equal(getExpRequiredForNextLevel(20), null);
+});
+
+test("previews and applies Short and Long Rest rules", () => {
+  const character = structuredClone(seedCharacter);
+  character.statuses[0].persistsThroughShortRest = true;
+  const intercede = character.classpectEntries.find(
+    (entry) => entry.id === "intercede",
+  );
+  intercede.currentCharges = 0;
+  intercede.used = true;
+
+  const shortRest = prepareRest(character, "Short Rest", 45, 20);
+  assert.equal(shortRest.character.resources.currentHealth, 39);
+  assert.equal(shortRest.character.resources.currentPluck, 17);
+  assert.equal(shortRest.character.resources.temporaryHealth, 0);
+  assert.equal(shortRest.character.resources.doomMarks, 1);
+  assert.equal(shortRest.preview.shortRestsAfter, 0);
+  assert.deepEqual(
+    shortRest.character.statuses.map((status) => status.statusName),
+    ["Burn"],
+  );
+  assert.equal(
+    shortRest.character.classpectEntries.find(
+      (entry) => entry.id === "intercede",
+    ).currentCharges,
+    1,
+  );
+  assert.equal(
+    shortRest.character.classpectEntries.find(
+      (entry) => entry.id === "intercede",
+    ).used,
+    false,
+  );
+
+  const longRest = prepareRest(character, "Long Rest", 45, 20);
+  assert.equal(longRest.character.resources.currentHealth, 45);
+  assert.equal(longRest.character.resources.currentPluck, 20);
+  assert.equal(longRest.character.resources.doomMarks, 0);
+  assert.equal(longRest.preview.shortRestsAfter, 2);
+  assert.equal(longRest.character.statuses.length, 0);
+  assert.equal(
+    longRest.character.classpectEntries.find(
+      (entry) => entry.id === "faultless-premise",
+    ).currentCharges,
+    2,
+  );
 });
 
 test("halves Piercing defense upward and permits negative resulting Health", () => {
